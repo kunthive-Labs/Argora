@@ -52,11 +52,16 @@ def _attr(page, selector, attr):
     return el.get_attribute(attr) if el else ""
 
 
-def scrape(search, location, max_results=120, headless=False, pause=1.2):
+def scrape(search, location, max_results=120, headless=False, pause=1.2,
+           log=print, should_stop=None):
+    """Scrape places. `log` receives progress strings (the web UI passes a
+    callback that streams them live). `should_stop` is an optional callable
+    returning True to abort gracefully mid-run."""
     from playwright.sync_api import sync_playwright
 
     query = f"{search} in {location}"
     results = []
+    stop = should_stop or (lambda: False)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -69,14 +74,14 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2):
         try:
             page.wait_for_selector(SEL["results_feed"], timeout=15000)
         except Exception:
-            print("  ! results feed never appeared — selector may be stale "
-                  "(update SEL['results_feed'])")
+            log("  ! results feed never appeared — selector may be stale "
+                "(update SEL['results_feed'])")
             browser.close()
             return results
 
         seen_links = []
         stagnant = 0
-        while len(seen_links) < max_results and stagnant < 5:
+        while len(seen_links) < max_results and stagnant < 5 and not stop():
             links = page.query_selector_all(SEL["result_link"])
             urls = [l.get_attribute("href") for l in links if l.get_attribute("href")]
             new = [u for u in urls if u not in seen_links]
@@ -90,9 +95,12 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2):
             page.wait_for_timeout(int(pause * 1000))
 
         seen_links = seen_links[:max_results]
-        print(f"  found {len(seen_links)} place cards; opening each…")
+        log(f"  found {len(seen_links)} place cards; opening each…")
 
         for i, url in enumerate(seen_links, 1):
+            if stop():
+                log("  · stop requested — finishing early")
+                break
             try:
                 page.goto(url, timeout=30000)
                 page.wait_for_selector(SEL["detail_name"], timeout=10000)
@@ -111,10 +119,10 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2):
                     "mapsUrl": url,
                 }
                 results.append(rec)
-                if i % 10 == 0:
-                    print(f"    {i}/{len(seen_links)}…")
+                log(f"    [{i}/{len(seen_links)}] {rec['name']or '(no name)'}"
+                    f"{'  · NO-SITE' if not rec['website'] else ''}")
             except Exception as e:
-                print(f"    ! skipped card {i}: {e}")
+                log(f"    ! skipped card {i}: {e}")
                 continue
 
         browser.close()

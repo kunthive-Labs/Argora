@@ -297,9 +297,14 @@ def generate(rows, dataset, only_leads=True):
         f"-- Skips anything already present by source_place_id OR phone, and\n"
         f"-- the UNIQUE(source_place_id) + ON CONFLICT is the final backstop.\n"
         f"-- Run in the Supabase SQL editor (service role; bypasses RLS). Safe to re-run.\n\n")
+    # Cast the numeric columns explicitly: an all-NULL column in a VALUES list is
+    # typed `text` by Postgres, which then won't insert into a numeric/int column.
+    casts = {"latitude": "::numeric", "longitude": "::numeric", "rating": "::numeric",
+             "reviews_count": "::int", "score": "::int"}
+    select_list = ",".join("v." + c + casts.get(c, "") for c in COLUMNS)
     body = (
         f"INSERT INTO {TABLE} ({cols})\n"
-        f"SELECT {','.join('v.' + c for c in COLUMNS)}\n"
+        f"SELECT {select_list}\n"
         f"FROM (VALUES\n  " + ",\n  ".join(values) + f"\n) AS v({cols})\n"
         f"WHERE NOT EXISTS (\n"
         f"  SELECT 1 FROM {TABLE} l\n"

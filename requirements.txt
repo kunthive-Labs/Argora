@@ -1,3 +1,4 @@
 playwright>=1.40
 fastapi>=0.110
 uvicorn[standard]>=0.27
+psycopg[binary]>=3.1   # direct push of leads into the KunthiveOS Supabase

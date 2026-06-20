@@ -3,98 +3,173 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>maps-lead-finder</title>
+<title>Argora — maps lead finder</title>
 <style>
   :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#272c38;
-    --text:#e6e9ef; --muted:#8b93a7; --accent:#5b8cff; --good:#3ecf8e;
-    --warn:#f5a623; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --panel3:#232836; --line:#272c38;
+    --text:#e6e9ef; --muted:#8b93a7; --faint:#5c6276; --accent:#5b8cff; --accent2:#7aa2ff;
+    --good:#3ecf8e; --warn:#f5a623; --bad:#ff8a9a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
     font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
-  h1{font-size:20px;margin:0;font-weight:650;letter-spacing:.2px}
+  .wrap{max-width:1140px;margin:0 auto;padding:26px 20px 90px}
+  header{display:flex;align-items:center;gap:13px;margin-bottom:6px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#9b6bff);
+    display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b0e14;font-size:18px;flex:0 0 auto}
+  h1{font-size:21px;margin:0;font-weight:680;letter-spacing:.2px}
   h1 span{color:var(--muted);font-weight:400;font-size:14px}
   h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;
-    color:var(--muted);margin:0 0 14px;font-weight:600}
-  header{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
-  .note{font-size:12.5px;color:var(--muted);margin:0 0 22px}
-  .note a{color:var(--accent);text-decoration:none}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:20px;margin-bottom:18px}
-  label{display:block;font-size:12.5px;color:var(--muted);margin:0 0 6px}
+    color:var(--muted);margin:0 0 16px;font-weight:600;display:flex;align-items:center;gap:9px}
+  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+    border-radius:6px;background:var(--panel3);color:var(--muted);font-size:11px;font-weight:700}
+  h2 .sub{text-transform:none;color:var(--faint);font-weight:400;letter-spacing:0}
+  .note{font-size:12.5px;color:var(--muted);margin:0 0 22px;background:rgba(245,166,35,.07);
+    border:1px solid rgba(245,166,35,.18);border-radius:9px;padding:10px 13px}
+  .note b{color:var(--warn)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+    padding:20px 22px;margin-bottom:16px}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:500}
   input[type=text],input[type=number],select{width:100%;background:var(--panel2);
     border:1px solid var(--line);color:var(--text);border-radius:8px;
-    padding:9px 11px;font-size:14px;outline:none}
+    padding:9px 11px;font-size:14px;outline:none;transition:border-color .12s}
   input:focus,select:focus{border-color:var(--accent)}
+  ::placeholder{color:var(--faint)}
   .row{display:flex;gap:14px;flex-wrap:wrap}
-  .row>div{flex:1;min-width:160px}
+  .row>div{flex:1;min-width:150px}
+
   .chips{display:flex;flex-wrap:wrap;gap:8px}
   .chip{border:1px solid var(--line);background:var(--panel2);border-radius:20px;
-    padding:6px 13px;font-size:13px;cursor:pointer;user-select:none;transition:.12s}
+    padding:6px 13px;font-size:13px;cursor:pointer;user-select:none;transition:.12s;display:inline-flex;align-items:center;gap:5px}
   .chip:hover{border-color:var(--muted)}
   .chip.on{background:var(--accent);border-color:var(--accent);color:#0b0e14;font-weight:600}
-  .chip small{opacity:.6;margin-left:5px}
+  .chip small{opacity:.6;margin-left:3px;font-size:11px}
+  .chip.custom{background:rgba(155,107,255,.14);border-color:rgba(155,107,255,.5);color:#c9b3ff}
+  .chip.custom .x{font-weight:700;opacity:.7;margin-left:2px}
+  .chip.custom .x:hover{opacity:1}
+  .chip.hidden{display:none}
+  .addrow{display:flex;gap:8px;margin-top:12px}
+  .addrow input{flex:1}
+
   button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
     background:var(--panel2);color:var(--text);padding:9px 16px;transition:.12s}
   button:hover{border-color:var(--muted)}
   button.primary{background:var(--accent);border-color:var(--accent);color:#0b0e14;font-weight:650}
+  button.primary:hover{background:var(--accent2);border-color:var(--accent2)}
   button.primary:disabled{opacity:.45;cursor:not-allowed}
-  button.danger{border-color:#5a2730;color:#ff8a9a}
-  .toolbar{display:flex;gap:10px;align-items:center;margin-top:18px}
-  .check{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);cursor:pointer}
+  button.danger{border-color:#5a2730;color:var(--bad)}
+  button.ghost{background:transparent}
+  button.sm{padding:6px 11px;font-size:13px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap}
+  .check{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+
+  details.adv{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+  details.adv summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none;user-select:none}
+  details.adv summary::-webkit-details-marker{display:none}
+  details.adv summary::before{content:"▸ ";color:var(--faint)}
+  details.adv[open] summary::before{content:"▾ "}
+  details.adv .row{margin-top:14px}
+
   .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
-    padding:9px 13px;min-width:96px}
-  .stat b{display:block;font-size:20px;line-height:1.1}
-  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+    padding:9px 14px;min-width:90px}
+  .stat b{display:block;font-size:21px;line-height:1.1}
+  .stat span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
   .console{background:#0b0d12;border:1px solid var(--line);border-radius:9px;
-    font:12.5px/1.55 var(--mono);padding:13px;height:300px;overflow:auto;white-space:pre-wrap;
-    color:#c6cddb}
-  .console .ns{color:var(--good)}
-  .console .err{color:#ff8a9a}
-  .console .ph{color:var(--accent)}
+    font:12.5px/1.55 var(--mono);padding:13px;height:300px;overflow:auto;white-space:pre-wrap;color:#c6cddb}
+  .console .ns{color:var(--good)} .console .err{color:var(--bad)} .console .ph{color:var(--accent2)}
+
   table{width:100%;border-collapse:collapse;font-size:13.5px}
-  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
-  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;
+    cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;background:var(--panel)}
+  th.sortable:hover{color:var(--text)}
+  th .arr{opacity:.5;font-size:10px}
   td.r,th.r{text-align:right}
-  .tag{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+  tr.clk{cursor:pointer}
+  tr.clk:hover td{background:var(--panel2)}
+  .tag{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;white-space:nowrap}
   .tag.LEADS{background:rgba(62,207,142,.14);color:var(--good)}
-  .tag.COMPETITORS{background:rgba(91,140,255,.14);color:var(--accent)}
+  .tag.COMPETITORS{background:rgba(91,140,255,.14);color:var(--accent2)}
   .tag.ALL{background:rgba(139,147,167,.14);color:var(--muted)}
-  .linkbtn{background:none;border:none;color:var(--accent);padding:0 8px;font-size:13px}
-  .empty{color:var(--muted);font-size:13.5px;padding:8px 0}
+  .tier{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
+  .tier.A{background:rgba(62,207,142,.18);color:var(--good)}
+  .tier.B{background:rgba(91,140,255,.18);color:var(--accent2)}
+  .tier.C{background:rgba(245,166,35,.18);color:var(--warn)}
+  .tier.D{background:rgba(139,147,167,.15);color:var(--muted)}
+  .score{font-variant-numeric:tabular-nums;font-weight:650}
+  .ws-nosite{color:var(--good);font-size:12px;font-weight:600}
+  .ws-site{color:var(--faint);font-size:12px}
+  .linkbtn{background:none;border:none;color:var(--accent2);padding:0 6px;font-size:13px;cursor:pointer}
+  .linkbtn:hover{text-decoration:underline}
+  .empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
+
+  .filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:4px 0 16px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+  .filterbar .fld{min-width:120px} .filterbar .fld.grow{flex:1;min-width:170px}
+  .filterbar label{font-size:11px;margin-bottom:5px}
+  .tablewrap{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+  .resmeta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;
+    font-size:13px;color:var(--muted);flex-wrap:wrap;gap:10px}
+
+  .filelist{display:flex;flex-direction:column;gap:6px}
+  .filerow{display:flex;align-items:center;gap:10px;padding:8px 11px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .filerow .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+  .filerow .fn:hover{color:var(--accent2)}
+  .filerow .cnt{color:var(--muted);font-size:12px;white-space:nowrap}
+
   textarea{width:100%;height:220px;background:#0b0d12;border:1px solid var(--line);
     color:#c6cddb;border-radius:9px;padding:12px;font:12.5px/1.5 var(--mono);resize:vertical}
-  .pill{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:7px}
+  .pill{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:0}
   .pill.run{background:var(--warn);animation:pulse 1s infinite}
   .pill.done{background:var(--good)}
   @keyframes pulse{50%{opacity:.3}}
+  .dbpill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+    background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:4px 12px}
+  .dbpill .dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+  .dbpill.ok .dot{background:var(--good)} .dbpill.off .dot{background:var(--bad)}
+  .msg{font-size:13px} .msg.ok{color:var(--good)} .msg.err{color:var(--bad)} .msg.muted{color:var(--muted)}
+
   dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);
-    border-radius:12px;max-width:90vw;padding:0}
+    border-radius:12px;max-width:92vw;padding:0}
   dialog::backdrop{background:rgba(0,0,0,.6)}
   .modalhead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
-  .modalbody{padding:14px 18px;max-height:70vh;overflow:auto}
-  .modalbody table{font-size:12px}
+  .modalhead button{border:none;background:none;font-size:18px;color:var(--muted);padding:0 4px}
+  .modalbody{padding:14px 18px;max-height:74vh;overflow:auto}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:13.5px}
+  .kv .k{color:var(--muted)}
+  .kv a{color:var(--accent2)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>maps-lead-finder <span>— no-website prospecting</span></h1>
+    <div class="logo">A</div>
+    <h1>Argora <span>— no-website prospecting</span></h1>
   </header>
   <p class="note">⚠ Keep runs modest &amp; headed. Don't scrape the same area repeatedly,
     don't add CAPTCHA/proxy evasion, don't commit scraped data. See <b>BARRIERS.md</b> before scaling.</p>
 
-  <!-- RUN -->
+  <!-- 1 · RUN -->
   <div class="card">
-    <h2>1 · New run</h2>
-    <label>Categories</label>
+    <h2><span class="n">1</span> New run</h2>
+
+    <label>Business categories <span style="color:var(--faint)">— pick presets and/or add your own</span></label>
+    <input type="text" id="chipfilter" placeholder="filter presets…" style="margin-bottom:10px;max-width:280px">
     <div class="chips" id="chips"></div>
-    <div class="row" style="margin-top:16px">
+
+    <div class="addrow">
+      <input type="text" id="customin" placeholder="add any business type — e.g. yoga studio, car detailing, cafe"
+        autocomplete="off">
+      <button class="sm" id="addcustom">+ Add</button>
+    </div>
+    <div class="chips" id="customchips" style="margin-top:10px"></div>
+
+    <div class="row" style="margin-top:18px">
       <div style="flex:2">
-        <label>Location (scrape area-by-area — Google caps ~120/search)</label>
+        <label>Location <span style="color:var(--faint)">(scrape area-by-area — Google caps ~120/search)</span></label>
         <input type="text" id="loc" placeholder="e.g. Jayanagar, Bengaluru" autocomplete="off">
       </div>
       <div style="flex:0 0 120px">
@@ -102,39 +177,83 @@
         <input type="number" id="max" value="120" min="1" max="120">
       </div>
     </div>
+
+    <details class="adv">
+      <summary>Advanced options</summary>
+      <div class="row">
+        <div style="flex:0 0 200px">
+          <label>Min reviews floor <span style="color:var(--faint)">(blank = preset default)</span></label>
+          <input type="number" id="minrev" placeholder="preset default" min="0">
+        </div>
+        <div style="flex:1;display:flex;align-items:flex-end">
+          <label class="check" style="margin-bottom:9px"><input type="checkbox" id="headless"> run headless <span style="color:var(--faint)">(higher throttle risk)</span></label>
+        </div>
+      </div>
+    </details>
+
     <div class="toolbar">
       <button class="primary" id="go">▶ Go</button>
       <button class="danger" id="stop" style="display:none">■ Stop</button>
-      <label class="check"><input type="checkbox" id="headless"> headless (higher throttle risk)</label>
+      <span id="runhint" class="msg muted"></span>
     </div>
   </div>
 
-  <!-- LIVE -->
+  <!-- 2 · LIVE -->
   <div class="card">
-    <h2><span class="pill" id="pill"></span>2 · Live</h2>
+    <h2><span class="pill" id="pill"></span><span class="n">2</span> Live</h2>
     <div class="stats" id="stats" style="display:none"></div>
     <div class="console" id="console">Idle — pick categories and a location, then hit Go.</div>
   </div>
 
-  <!-- FILES -->
+  <!-- 3 · RESULTS -->
   <div class="card">
-    <h2>3 · Extracted files <span style="text-transform:none;color:var(--muted);font-weight:400">(in data/leads/, git-ignored)</span></h2>
-    <div id="files"><div class="empty">No files yet.</div></div>
+    <h2><span class="n">3</span> Results <span class="sub">filter &amp; sort the leads you scraped</span></h2>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:2">
+        <label>File</label>
+        <select id="resfile"></select>
+      </div>
+      <div style="flex:0 0 auto;display:flex;gap:8px;align-items:flex-end">
+        <button class="sm" id="refresh">↻ Refresh</button>
+        <button class="sm" id="dlcur">↓ Download</button>
+      </div>
+    </div>
+
+    <div class="filterbar" id="filterbar" style="display:none">
+      <div class="fld grow"><label>Search name / category</label><input type="text" id="fSearch" placeholder="type to filter…"></div>
+      <div class="fld"><label>Website</label>
+        <select id="fWeb"><option value="">any</option><option value="NO-SITE">NO-SITE (lead)</option><option value="has-site">has-site</option></select></div>
+      <div class="fld"><label>Tier</label>
+        <select id="fTier"><option value="">any</option><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+      <div class="fld"><label>Min score</label><input type="number" id="fScore" min="0" max="100" placeholder="0"></div>
+      <div class="fld"><label>Min rating</label><input type="number" id="fRating" min="0" max="5" step="0.1" placeholder="0"></div>
+      <div class="fld"><label>Min reviews</label><input type="number" id="fRev" min="0" placeholder="0"></div>
+      <div class="fld" style="display:flex;align-items:flex-end"><button class="sm ghost" id="fClear">Clear</button></div>
+    </div>
+
+    <div class="tablewrap" id="restable"><div class="empty">No file selected.</div></div>
+    <div class="resmeta"><span id="rescount"></span></div>
+
+    <h2 style="margin-top:24px"><span class="sub" style="text-transform:none">All extracted files (data/leads/, git-ignored)</span></h2>
+    <div class="filelist" id="files"><div class="empty">No files yet.</div></div>
   </div>
 
-  <!-- SQL -->
+  <!-- 4 · SQL + PUSH -->
   <div class="card">
-    <h2>4 · Supabase SQL generator</h2>
+    <h2><span class="n">4</span> Supabase <span class="sub">generate SQL or push directly</span>
+      <span style="flex:1"></span><span class="dbpill" id="dbpill"><span class="dot"></span><span id="dbtext">checking DB…</span></span>
+    </h2>
     <div class="row">
-      <div style="flex:2"><label>LEADS file</label>
-        <select id="sqlcsv"></select></div>
+      <div style="flex:2"><label>LEADS file</label><select id="sqlcsv"></select></div>
       <div><label>source_dataset (provenance tag)</label><input type="text" id="dataset" placeholder="argora/<file>"></div>
     </div>
-    <p class="note" style="margin:10px 0 0">INSERT-only · skips by place-id <b>and</b> phone · <code>ON CONFLICT</code> backstop → safe to re-run, never duplicates. Run in the Supabase SQL editor.</p>
+    <p class="note" style="margin:12px 0 0;background:rgba(91,140,255,.06);border-color:rgba(91,140,255,.18)">
+      INSERT-only · skips by place-id <b style="color:var(--accent2)">and</b> phone · <code>ON CONFLICT</code> backstop → safe to re-run, never duplicates.</p>
     <div class="toolbar">
       <button class="primary" id="gensql">Generate SQL</button>
+      <button id="pushdb" disabled title="needs a reachable DB">⤴ Push to DB</button>
       <label class="check"><input type="checkbox" id="hassite"> include has-site rows</label>
-      <span id="sqlmeta" style="color:var(--muted);font-size:13px"></span>
+      <span id="sqlmeta" class="msg muted"></span>
     </div>
     <textarea id="sqlout" style="margin-top:14px;display:none" readonly></textarea>
     <div class="toolbar" id="sqlactions" style="display:none">
@@ -144,23 +263,50 @@
   </div>
 </div>
 
-<dialog id="preview"><div class="modalhead"><b id="pvtitle"></b><button onclick="document.getElementById('preview').close()">✕</button></div><div class="modalbody" id="pvbody"></div></dialog>
+<dialog id="preview">
+  <div class="modalhead"><b id="pvtitle"></b><button onclick="document.getElementById('preview').close()">✕</button></div>
+  <div class="modalbody" id="pvbody"></div>
+</dialog>
 
 <script>
-const $=s=>document.querySelector(s), api=(p,o)=>fetch(p,o).then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||r.statusText)));
-let selected=new Set(), es=null, sqlText="", sqlFile="";
+const $=s=>document.querySelector(s);
+const api=(p,o)=>fetch(p,o).then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||r.statusText)));
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let selected=new Set(), customCats=[], es=null, sqlText="", sqlFile="";
 
-// load sectors
+/* ---------- 1 · categories ---------- */
 api('/api/sectors').then(list=>{
-  $('#chips').innerHTML='';
+  const box=$('#chips'); box.innerHTML='';
   list.forEach(s=>{
-    const el=document.createElement('div'); el.className='chip';
-    el.innerHTML=`${s.key}<small>≥${s.min_reviews}★</small>`;
+    const el=document.createElement('div'); el.className='chip'; el.dataset.key=s.key;
+    el.innerHTML=`${esc(s.key)}<small>≥${s.min_reviews}★</small>`;
     el.onclick=()=>{el.classList.toggle('on'); selected.has(s.key)?selected.delete(s.key):selected.add(s.key);};
-    $('#chips').appendChild(el);
+    box.appendChild(el);
   });
 });
+$('#chipfilter').oninput=e=>{
+  const q=e.target.value.toLowerCase();
+  $('#chips').querySelectorAll('.chip').forEach(c=>
+    c.classList.toggle('hidden', !c.dataset.key.includes(q)));
+};
+function renderCustom(){
+  const box=$('#customchips'); box.innerHTML='';
+  customCats.forEach((q,i)=>{
+    const el=document.createElement('div'); el.className='chip custom';
+    el.innerHTML=`${esc(q)} <span class="x">✕</span>`;
+    el.querySelector('.x').onclick=()=>{customCats.splice(i,1); renderCustom();};
+    box.appendChild(el);
+  });
+}
+function addCustom(){
+  const v=$('#customin').value.trim();
+  if(v && !customCats.includes(v)) customCats.push(v);
+  $('#customin').value=''; renderCustom();
+}
+$('#addcustom').onclick=addCustom;
+$('#customin').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addCustom();}};
 
+/* ---------- 2 · run + live ---------- */
 function logLine(line){
   const c=$('#console'); let cls='';
   if(/NO-SITE/.test(line))cls='ns'; if(/^✗|error/i.test(line))cls='err'; if(/^▶/.test(line))cls='ph';
@@ -174,20 +320,21 @@ function renderStats(){
   box.innerHTML=`<div class="stat"><b>${t.l}</b><span>leads</span></div>
     <div class="stat"><b>${t.c}</b><span>competitors</span></div>
     <div class="stat"><b>${t.n}</b><span>scraped</span></div>
-    <div class="stat"><b>${window._sum.length}</b><span>sectors</span></div>`;
+    <div class="stat"><b>${window._sum.length}</b><span>categories</span></div>`;
 }
 function setRunning(on){
   $('#go').disabled=on; $('#stop').style.display=on?'inline-block':'none';
   $('#pill').className='pill '+(on?'run':'done');
 }
-
 $('#go').onclick=async()=>{
-  if(!selected.size){alert('Pick at least one category.');return;}
-  if(!$('#loc').value.trim()){alert('Enter a location.');return;}
-  $('#console').innerHTML=''; window._sum=[]; renderStats(); setRunning(true);
+  if(!selected.size && !customCats.length){$('#runhint').textContent='Pick a preset or add a custom category.';return;}
+  if(!$('#loc').value.trim()){$('#runhint').textContent='Enter a location.';return;}
+  $('#runhint').textContent=''; $('#console').innerHTML=''; window._sum=[]; renderStats(); setRunning(true);
+  const mr=$('#minrev').value.trim();
   try{
     const {job_id}=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sectors:[...selected],location:$('#loc').value,max:+$('#max').value,headless:$('#headless').checked})});
+      body:JSON.stringify({sectors:[...selected],custom:customCats,location:$('#loc').value,
+        max:+$('#max').value,headless:$('#headless').checked,min_reviews:mr===''?null:+mr})});
     es=new EventSource('/api/stream/'+job_id);
     es.onmessage=e=>{
       const m=JSON.parse(e.data);
@@ -202,44 +349,149 @@ $('#go').onclick=async()=>{
 };
 $('#stop').onclick=()=>{api('/api/stop',{method:'POST'}); logLine('· stop requested…');};
 
+/* ---------- 3 · results browser ---------- */
+let curRows=[], curCols=[], sortCol='score', sortDir=-1;
+const NUM=new Set(['score','reviews','rating']);
+const COLS=['name','category','phone','rating','reviews','website_status','score','tier','rank_tags'];
+
 async function loadFiles(){
   const files=await api('/api/files');
-  const box=$('#files'), sel=$('#sqlcsv');
-  if(!files.length){box.innerHTML='<div class="empty">No files yet.</div>';return;}
-  let h='<table><tr><th>File</th><th>Type</th><th class="r">Rows</th><th></th></tr>';
-  files.forEach(f=>{h+=`<tr><td>${f.name}</td><td><span class="tag ${f.kind}">${f.kind}</span></td>
-    <td class="r">${f.rows}</td><td class="r">
-    <button class="linkbtn" onclick="prev('${f.name}')">preview</button>
-    <button class="linkbtn" onclick="location.href='/api/download/${f.name}'">download</button></td></tr>`;});
-  box.innerHTML=h+'</table>';
-  sel.innerHTML=files.filter(f=>f.kind==='LEADS').map(f=>`<option>${f.name}</option>`).join('')
+  // file list
+  const box=$('#files');
+  if(!files.length){box.innerHTML='<div class="empty">No files yet — run a scrape above.</div>';}
+  else{box.innerHTML=files.map(f=>`<div class="filerow">
+      <span class="tag ${f.kind}">${f.kind}</span>
+      <span class="fn" onclick="prev('${esc(f.name)}')" title="preview">${esc(f.name)}</span>
+      <span class="cnt">${f.rows} rows</span>
+      <button class="linkbtn" onclick="location.href='/api/download/${encodeURIComponent(f.name)}'">download</button>
+    </div>`).join('');}
+  // selects
+  const resSel=$('#resfile'), prev=resSel.value;
+  resSel.innerHTML=files.map(f=>`<option>${esc(f.name)}</option>`).join('')||'<option value="">— none —</option>';
+  if(files.some(f=>f.name===prev)) resSel.value=prev;
+  $('#sqlcsv').innerHTML=files.filter(f=>f.kind==='LEADS').map(f=>`<option>${esc(f.name)}</option>`).join('')
     ||'<option value="">— no LEADS files —</option>';
+  if(files.length && resSel.value) loadResults(resSel.value);
 }
+async function loadResults(name){
+  if(!name)return;
+  const d=await api('/api/preview/'+encodeURIComponent(name)+'?limit=5000');
+  curCols=d.columns; curRows=d.rows;
+  $('#filterbar').style.display='flex';
+  renderTable();
+}
+function activeFilters(){
+  return {q:$('#fSearch').value.toLowerCase().trim(), web:$('#fWeb').value, tier:$('#fTier').value,
+    score:+$('#fScore').value||0, rating:+$('#fRating').value||0, rev:+$('#fRev').value||0};
+}
+function renderTable(){
+  const f=activeFilters();
+  let rows=curRows.filter(r=>{
+    if(f.q && !((r.name||'')+' '+(r.category||'')).toLowerCase().includes(f.q))return false;
+    if(f.web && (r.website_status||'')!==f.web)return false;
+    if(f.tier && (r.tier||'')!==f.tier)return false;
+    if(f.score && (+r.score||0)<f.score)return false;
+    if(f.rating && (+r.rating||0)<f.rating)return false;
+    if(f.rev && (+r.reviews||0)<f.rev)return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let x=a[sortCol]??'', y=b[sortCol]??'';
+    if(NUM.has(sortCol)){x=+x||0;y=+y||0;}else{x=(''+x).toLowerCase();y=(''+y).toLowerCase();}
+    return (x<y?-1:x>y?1:0)*sortDir;
+  });
+  const cols=COLS.filter(c=>curCols.includes(c));
+  if(!curRows.length){$('#restable').innerHTML='<div class="empty">This file is empty.</div>';$('#rescount').textContent='';return;}
+  let h='<table><thead><tr>'+cols.map(c=>{
+    const arr=sortCol===c?(sortDir<0?'▼':'▲'):'';
+    return `<th class="sortable ${NUM.has(c)?'r':''}" onclick="sortBy('${c}')">${c.replace('_',' ')} <span class="arr">${arr}</span></th>`;
+  }).join('')+'</tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    h+=`<tr class="clk" onclick="rowDetail(${i})">`+cols.map(c=>{
+      let v=r[c]??'';
+      if(c==='score')return `<td class="r"><span class="score">${esc(v)}</span></td>`;
+      if(c==='tier')return `<td><span class="tier ${esc(v)}">${esc(v)}</span></td>`;
+      if(c==='website_status')return `<td><span class="${v==='NO-SITE'?'ws-nosite':'ws-site'}">${esc(v)}</span></td>`;
+      if(NUM.has(c))return `<td class="r">${esc(v)}</td>`;
+      return `<td>${esc((''+v).slice(0,55))}</td>`;
+    }).join('')+'</tr>';
+  });
+  $('#restable').innerHTML=h+'</tbody></table>';
+  window._filtered=rows;
+  $('#rescount').textContent=`${rows.length} of ${curRows.length} rows`;
+}
+window.sortBy=c=>{ if(sortCol===c)sortDir*=-1; else{sortCol=c;sortDir=NUM.has(c)?-1:1;} renderTable(); };
+window.rowDetail=i=>{
+  const r=window._filtered[i]; if(!r)return;
+  $('#pvtitle').textContent=r.name||'(no name)';
+  $('#pvbody').innerHTML='<div class="kv">'+curCols.map(c=>{
+    let v=r[c]??''; if(c==='maps_url'&&v)v=`<a href="${esc(v)}" target="_blank">open map ↗</a>`;
+    else if(c==='website'&&v&&v!=='')v=`<a href="${esc(v)}" target="_blank">${esc(v)}</a>`;
+    else v=esc(v);
+    return `<div class="k">${c.replace('_',' ')}</div><div>${v||'<span style="color:var(--faint)">—</span>'}</div>`;
+  }).join('')+'</div>';
+  $('#preview').showModal();
+};
+['fSearch','fWeb','fTier','fScore','fRating','fRev'].forEach(id=>{
+  $('#'+id).addEventListener('input',renderTable);
+});
+$('#fClear').onclick=()=>{['fSearch','fScore','fRating','fRev'].forEach(id=>$('#'+id).value='');
+  $('#fWeb').value='';$('#fTier').value=''; renderTable();};
+$('#resfile').onchange=e=>loadResults(e.target.value);
+$('#refresh').onclick=loadFiles;
+$('#dlcur').onclick=()=>{const n=$('#resfile').value; if(n)location.href='/api/download/'+encodeURIComponent(n);};
+
+/* legacy modal preview for the file list */
 window.prev=async name=>{
-  const d=await api('/api/preview/'+name);
+  const d=await api('/api/preview/'+encodeURIComponent(name));
   $('#pvtitle').textContent=name+'  ·  '+d.total+' rows';
   if(!d.rows.length){$('#pvbody').innerHTML='<div class="empty">empty</div>';}
-  else{let h='<table><tr>'+d.columns.map(c=>`<th>${c}</th>`).join('')+'</tr>';
-    d.rows.forEach(r=>{h+='<tr>'+d.columns.map(c=>`<td>${(r[c]||'').toString().slice(0,60)}</td>`).join('')+'</tr>';});
-    $('#pvbody').innerHTML=h+'</table>';}
+  else{let h='<table><tr>'+d.columns.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
+    d.rows.forEach(r=>{h+='<tr>'+d.columns.map(c=>`<td>${esc((''+(r[c]||'')).slice(0,60))}</td>`).join('')+'</tr>';});
+    $('#pvbody').innerHTML='<div style="overflow:auto">'+h+'</table></div>';}
   $('#preview').showModal();
 };
 
+/* ---------- 4 · SQL + push ---------- */
 $('#gensql').onclick=async()=>{
-  const csv=$('#sqlcsv').value; if(!csv){alert('No LEADS file to generate from.');return;}
-  $('#sqlmeta').textContent='generating…';
+  const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No LEADS file.';return;}
+  $('#sqlmeta').className='msg muted'; $('#sqlmeta').textContent='generating…';
   try{
     const d=await api('/api/sql',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({csv,dataset:$('#dataset').value||null,include_has_site:$('#hassite').checked})});
     sqlText=d.sql; sqlFile=d.file;
     $('#sqlout').value=d.sql; $('#sqlout').style.display='block'; $('#sqlactions').style.display='flex';
-    $('#sqlmeta').textContent=`${d.count} rows → data/sql/${d.file}`;
-  }catch(err){$('#sqlmeta').textContent='✗ '+err;}
+    $('#sqlmeta').className='msg ok'; $('#sqlmeta').textContent=`✓ ${d.count} rows → data/sql/${d.file}`;
+  }catch(err){$('#sqlmeta').className='msg err'; $('#sqlmeta').textContent='✗ '+err;}
 };
 $('#copysql').onclick=()=>{navigator.clipboard.writeText(sqlText); $('#copysql').textContent='Copied ✓'; setTimeout(()=>$('#copysql').textContent='Copy',1200);};
-$('#dlsql').onclick=()=>location.href='/api/download/'+sqlFile;
+$('#dlsql').onclick=()=>location.href='/api/download/'+encodeURIComponent(sqlFile);
 
+async function refreshDbStatus(){
+  const pill=$('#dbpill'), txt=$('#dbtext'), btn=$('#pushdb');
+  try{
+    const s=await api('/api/db-status');
+    if(s.reachable){pill.className='dbpill ok';txt.textContent=`DB connected · ${s.leads_total} leads`;btn.disabled=false;}
+    else if(s.configured){pill.className='dbpill off';txt.textContent='DB unreachable';btn.disabled=true;btn.title=s.detail||'';}
+    else{pill.className='dbpill off';txt.textContent='DB not configured';btn.disabled=true;btn.title=s.detail||'';}
+  }catch(e){pill.className='dbpill off';txt.textContent='DB status error';btn.disabled=true;}
+}
+$('#pushdb').onclick=async()=>{
+  const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No LEADS file.';return;}
+  if(!confirm('Push leads from '+csv+' into the KunthiveOS database?\n(INSERT-only & idempotent — safe to re-run.)'))return;
+  $('#sqlmeta').className='msg muted'; $('#sqlmeta').textContent='pushing…';
+  try{
+    const d=await api('/api/push-db',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({csv,dataset:$('#dataset').value||null,include_has_site:$('#hassite').checked})});
+    $('#sqlmeta').className='msg ok';
+    $('#sqlmeta').textContent=`✓ pushed ${d.inserted} new of ${d.attempted} candidates`+(d.note?` · ${d.note}`:'');
+    refreshDbStatus();
+  }catch(err){$('#sqlmeta').className='msg err'; $('#sqlmeta').textContent='✗ '+err;}
+};
+
+/* ---------- init ---------- */
 loadFiles();
+refreshDbStatus();
 </script>
 </body>
 </html>

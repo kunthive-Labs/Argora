@@ -22,11 +22,12 @@ import threading
 import time
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                StreamingResponse)
 from pydantic import BaseModel
 
-from leadfinder import analyze, scraper, sectors, sql_gen
+from leadfinder import analyze, db, scraper, sectors, sql_gen
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(BASE, "data", "raw")
@@ -37,6 +38,16 @@ for d in (RAW, LEADS, SQL):
     os.makedirs(d, exist_ok=True)
 
 app = FastAPI(title="maps-lead-finder")
+
+# KunthiveOS runs the Lead Finder UI locally (next dev on :3000) and calls this
+# sidecar directly. Allow the local dev origins so the browser can reach us.
+# Everything here is localhost-only; this server never runs in the cloud.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ----- job state -------------------------------------------------------------
@@ -64,21 +75,41 @@ def _slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
-def run_job(job, sectors_sel, location, max_results, headless):
+def _targets(sectors_sel, custom, min_reviews_override):
+    """Build a uniform list of scrape targets from preset names + free-text
+    custom queries. Each target is (key, query, exclude, min_reviews)."""
+    targets = []
+    for name in sectors_sel:
+        preset = sectors.get(name)
+        floor = preset["min_reviews"] if min_reviews_override is None else min_reviews_override
+        targets.append((name, preset["query"], preset["exclude"], floor))
+    for q in custom:
+        q = q.strip()
+        if not q:
+            continue
+        # a custom business type: no exclude list, review floor from the override
+        # (default 0 — keep everything the search returns).
+        targets.append((_slug(q), q, [], min_reviews_override or 0))
+    return targets
+
+
+def run_job(job, sectors_sel, custom, location, max_results, headless,
+            min_reviews_override):
     try:
-        for name in sectors_sel:
+        for key, query, exclude, min_reviews in _targets(
+                sectors_sel, custom, min_reviews_override):
             if job.stop:
                 break
-            preset = sectors.get(name)
+            name = key
             stem = f"{name}-{_slug(location)}"
             raw_path = os.path.join(RAW, f"{stem}.json")
             out_stem = os.path.join(LEADS, stem)
 
             job.emit("phase", sector=name, label=f"{name} @ {location}")
-            job.log(f"▶ {preset['query']} in {location} (max {max_results})")
+            job.log(f"▶ {query} in {location} (max {max_results}, ≥{min_reviews}★rev)")
 
             records = scraper.scrape(
-                preset["query"], location, max_results, headless,
+                query, location, max_results, headless,
                 log=job.log, should_stop=lambda: job.stop)
 
             with open(raw_path, "w") as f:
@@ -86,7 +117,7 @@ def run_job(job, sectors_sel, location, max_results, headless):
             job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
 
             allrec, leads, comps = analyze.analyze(
-                records, preset["exclude"], preset["min_reviews"])
+                records, exclude, min_reviews)
             analyze.write_csv(f"{out_stem}-ALL.csv", allrec)
             analyze.write_csv(f"{out_stem}-LEADS.csv", leads)
             analyze.write_csv(f"{out_stem}-COMPETITORS.csv", comps)
@@ -112,13 +143,21 @@ def run_job(job, sectors_sel, location, max_results, headless):
 
 # ----- models ----------------------------------------------------------------
 class RunReq(BaseModel):
-    sectors: list[str]
+    sectors: list[str] = []
+    custom: list[str] = []          # free-text business types, scraped as-is
     location: str
     max: int = 120
     headless: bool = False
+    min_reviews: int | None = None  # override the review floor for every target
 
 
 class SqlReq(BaseModel):
+    csv: str
+    dataset: str | None = None
+    include_has_site: bool = False
+
+
+class PushReq(BaseModel):
     csv: str
     dataset: str | None = None
     include_has_site: bool = False
@@ -142,15 +181,17 @@ def start_run(req: RunReq):
     with _lock:
         if _current["job"] and not _current["job"].done:
             raise HTTPException(409, "A job is already running.")
-        if not req.sectors:
-            raise HTTPException(400, "Pick at least one category.")
+        custom = [c.strip() for c in req.custom if c.strip()]
+        if not req.sectors and not custom:
+            raise HTTPException(400, "Pick a preset or add a custom category.")
         if not req.location.strip():
             raise HTTPException(400, "Location is required.")
         job = Job(str(int(time.time() * 1000)))
         _current["job"] = job
+    mr = None if req.min_reviews is None else max(0, req.min_reviews)
     t = threading.Thread(target=run_job, args=(
-        job, req.sectors, req.location.strip(),
-        max(1, min(req.max, 120)), req.headless), daemon=True)
+        job, req.sectors, custom, req.location.strip(),
+        max(1, min(req.max, 120)), req.headless, mr), daemon=True)
     t.start()
     return {"job_id": job.id}
 
@@ -206,13 +247,14 @@ def files():
 
 
 @app.get("/api/preview/{name}")
-def preview(name: str):
+def preview(name: str, limit: int = 50):
     path = os.path.join(LEADS, os.path.basename(name))
     if not os.path.exists(path):
         raise HTTPException(404, "Not found")
     rows = _csv_rows(path)
+    limit = max(1, min(limit, 5000))  # the results browser asks for the full file
     return {"columns": list(rows[0].keys()) if rows else [],
-            "rows": rows[:50], "total": len(rows)}
+            "rows": rows[:limit], "total": len(rows)}
 
 
 @app.get("/api/download/{name}")
@@ -238,3 +280,27 @@ def gen_sql(req: SqlReq):
     with open(os.path.join(SQL, out_name), "w") as f:
         f.write(sql)
     return JSONResponse({"sql": sql, "count": n, "file": out_name})
+
+
+@app.get("/api/db-status")
+def db_status():
+    """Is a KunthiveOS database reachable? Drives the 'Push to DB' affordance."""
+    return db.status()
+
+
+@app.post("/api/push-db")
+def push_db(req: PushReq):
+    """Execute the generated INSERT straight against the KunthiveOS Supabase —
+    the no-copy-paste path. Same idempotent SQL as /api/sql, just run for you."""
+    path = os.path.join(LEADS, os.path.basename(req.csv))
+    if not os.path.exists(path):
+        raise HTTPException(404, "CSV not found")
+    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    dataset = req.dataset or f"argora/{stem}"
+    try:
+        result = db.push_csv(path, dataset, only_leads=not req.include_has_site)
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:  # connection / SQL error — surface cleanly to the UI
+        raise HTTPException(502, f"Push failed: {e}")
+    return JSONResponse(result)

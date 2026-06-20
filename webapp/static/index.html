@@ -3,173 +3,311 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Argora — maps lead finder</title>
+<title>Argora — Ledger of Prospects</title>
 <style>
   :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --panel3:#232836; --line:#272c38;
-    --text:#e6e9ef; --muted:#8b93a7; --faint:#5c6276; --accent:#5b8cff; --accent2:#7aa2ff;
-    --good:#3ecf8e; --warn:#f5a623; --bad:#ff8a9a;
-    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    /* ledger desk world */
+    --felt:#1e3a32;          /* desk felt — page background */
+    --felt-dk:#162b25;       /* shadowed felt */
+    --leather:#3c2a1e;       /* ledger spine / header band */
+    --paper:#f3ead3;         /* aged ledger sheet */
+    --paper-band:#e7ecd6;    /* the pale-green bar on accounting paper */
+    --paper-edge:#ddd0ad;    /* sheet edge / hairline */
+    --ink:#2b2a26;           /* iron-gall ink (body) */
+    --ink-soft:#6f6a5c;      /* faded ink (labels) */
+    --ink-faint:#a39c87;     /* very faint ink */
+    --rule:#b0413a;          /* red margin rule */
+    --gilt:#c2a14d;          /* gold leaf */
+    --gilt-dk:#9c7e33;       /* engraved gold shadow */
+    --blue:#3a5a8c;          /* ledger blue-ink (links/figures) */
+    --good:#2f7d52; --warn:#b8761f; --bad:#9e2b2b;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,"Roboto Mono",monospace;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);
-    font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-  .wrap{max-width:1140px;margin:0 auto;padding:26px 20px 90px}
-  header{display:flex;align-items:center;gap:13px;margin-bottom:6px}
-  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#9b6bff);
-    display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b0e14;font-size:18px;flex:0 0 auto}
-  h1{font-size:21px;margin:0;font-weight:680;letter-spacing:.2px}
-  h1 span{color:var(--muted);font-weight:400;font-size:14px}
-  h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;
-    color:var(--muted);margin:0 0 16px;font-weight:600;display:flex;align-items:center;gap:9px}
-  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
-    border-radius:6px;background:var(--panel3);color:var(--muted);font-size:11px;font-weight:700}
-  h2 .sub{text-transform:none;color:var(--faint);font-weight:400;letter-spacing:0}
-  .note{font-size:12.5px;color:var(--muted);margin:0 0 22px;background:rgba(245,166,35,.07);
-    border:1px solid rgba(245,166,35,.18);border-radius:9px;padding:10px 13px}
-  .note b{color:var(--warn)}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;
-    padding:20px 22px;margin-bottom:16px}
-  label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:500}
-  input[type=text],input[type=number],select{width:100%;background:var(--panel2);
-    border:1px solid var(--line);color:var(--text);border-radius:8px;
-    padding:9px 11px;font-size:14px;outline:none;transition:border-color .12s}
-  input:focus,select:focus{border-color:var(--accent)}
-  ::placeholder{color:var(--faint)}
-  .row{display:flex;gap:14px;flex-wrap:wrap}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;color:var(--ink);font:15px/1.55 var(--sans);
+    background:
+      radial-gradient(120% 80% at 50% -10%, #25473d 0%, var(--felt) 45%, var(--felt-dk) 100%) fixed;
+    min-height:100vh}
+  /* faint felt weave so the desk reads as fabric, not flat color */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,.018) 0 2px, transparent 2px 4px),
+      repeating-linear-gradient(-45deg, rgba(0,0,0,.05) 0 2px, transparent 2px 4px)}
+  .wrap{max-width:1180px;margin:0 auto;padding:30px 22px 90px;position:relative}
+
+  /* ---------- masthead: a gilt-stamped ledger cover ---------- */
+  header.cover{background:
+      linear-gradient(180deg,#46301f,var(--leather));
+    border:1px solid #20140b;border-radius:10px;
+    box-shadow:0 14px 30px -12px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+    padding:20px 26px;margin-bottom:22px;position:relative;overflow:hidden}
+  header.cover::after{content:"";position:absolute;inset:9px;border:1.5px solid rgba(194,161,77,.5);
+    border-radius:5px;pointer-events:none}
+  .cover-row{display:flex;align-items:center;gap:16px;position:relative}
+  .crest{width:46px;height:46px;border-radius:8px;flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%, #e7c873, var(--gilt) 45%, var(--gilt-dk));
+    box-shadow:inset 0 1px 1px rgba(255,255,255,.5), 0 2px 4px rgba(0,0,0,.4);
+    display:flex;align-items:center;justify-content:center;
+    font:800 24px var(--serif);color:#3c2a1e}
+  .cover h1{margin:0;font:600 27px/1 var(--serif);letter-spacing:.06em;
+    color:#eedfb4;text-shadow:0 1px 0 rgba(0,0,0,.5)}
+  .cover .sub{display:block;margin-top:5px;font:400 12.5px/1 var(--sans);
+    letter-spacing:.32em;text-transform:uppercase;color:var(--gilt)}
+  .folio{margin-left:auto;text-align:right;color:var(--gilt);
+    font:italic 13px var(--serif);opacity:.9;flex:0 0 auto}
+  .folio b{display:block;font-style:normal;font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:#c8b27a;opacity:.7}
+
+  .notice{font-size:12.5px;color:#e9dcc0;margin:0 0 22px;
+    background:rgba(176,65,58,.16);border:1px solid rgba(176,65,58,.45);
+    border-left:4px solid var(--rule);border-radius:7px;padding:10px 14px}
+  .notice b{color:#f0bdb6}
+
+  /* ---------- a ledger sheet ---------- */
+  .sheet{background:var(--paper);
+    background-image:linear-gradient(180deg, rgba(255,255,255,.35), rgba(0,0,0,.015));
+    border:1px solid var(--paper-edge);border-radius:4px;
+    box-shadow:0 10px 26px -14px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.25),
+      inset 6px 0 0 -3px var(--rule);  /* red margin rule down the left */
+    padding:22px 26px 24px 34px;margin-bottom:20px;position:relative}
+  .sheet::before{content:"";position:absolute;left:22px;top:0;bottom:0;width:1px;
+    background:rgba(176,65,58,.25)}  /* faint second margin line */
+
+  .head{display:flex;align-items:baseline;gap:11px;margin:0 0 18px;
+    padding-bottom:11px;border-bottom:1.5px solid var(--ink);}
+  .head .fol{font:600 11px var(--mono);letter-spacing:.05em;color:var(--rule);
+    border:1px solid var(--rule);border-radius:3px;padding:2px 6px;flex:0 0 auto}
+  .head h2{margin:0;font:600 19px var(--serif);letter-spacing:.01em;color:var(--ink)}
+  .head .desc{font:italic 13.5px var(--serif);color:var(--ink-soft)}
+  .head .right{margin-left:auto;display:flex;gap:9px;align-items:center}
+
+  label{display:block;font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);margin:0 0 6px}
+  label .lc{text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-faint)}
+  input[type=text],input[type=number],select,textarea{width:100%;font:14px var(--sans);
+    color:var(--ink);background:#fbf7ea;border:1px solid var(--paper-edge);
+    border-radius:5px;padding:9px 11px;outline:none;transition:border-color .12s, box-shadow .12s;
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+  input:focus,select:focus,textarea:focus{border-color:var(--gilt-dk);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.06), 0 0 0 3px rgba(194,161,77,.3)}
+  ::placeholder{color:var(--ink-faint)}
+  .row{display:flex;gap:15px;flex-wrap:wrap}
   .row>div{flex:1;min-width:150px}
 
+  /* category chips = index tabs on a ledger divider */
   .chips{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{border:1px solid var(--line);background:var(--panel2);border-radius:20px;
-    padding:6px 13px;font-size:13px;cursor:pointer;user-select:none;transition:.12s;display:inline-flex;align-items:center;gap:5px}
-  .chip:hover{border-color:var(--muted)}
-  .chip.on{background:var(--accent);border-color:var(--accent);color:#0b0e14;font-weight:600}
-  .chip small{opacity:.6;margin-left:3px;font-size:11px}
-  .chip.custom{background:rgba(155,107,255,.14);border-color:rgba(155,107,255,.5);color:#c9b3ff}
-  .chip.custom .x{font-weight:700;opacity:.7;margin-left:2px}
-  .chip.custom .x:hover{opacity:1}
+  .chip{font:14px var(--serif);cursor:pointer;user-select:none;transition:.12s;
+    background:#efe6cd;color:var(--ink);border:1px solid var(--paper-edge);
+    border-radius:4px 4px 0 0;border-bottom:2px solid var(--ink-faint);
+    padding:6px 13px;display:inline-flex;align-items:center;gap:6px;
+    box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .chip:hover{transform:translateY(-1px);border-bottom-color:var(--gilt-dk)}
+  .chip.on{background:#fbf7ea;border-bottom:2px solid var(--rule);color:var(--ink);
+    box-shadow:0 -1px 4px rgba(0,0,0,.08), inset 0 2px 0 rgba(176,65,58,.15)}
+  .chip small{font:11px var(--mono);color:var(--ink-soft)}
+  .chip.custom{background:rgba(58,90,140,.1);border-color:rgba(58,90,140,.4);
+    border-bottom-color:var(--blue);color:var(--blue);border-radius:4px}
+  .chip.custom .x{font-weight:700;opacity:.6} .chip.custom .x:hover{opacity:1}
   .chip.hidden{display:none}
-  .addrow{display:flex;gap:8px;margin-top:12px}
+  .addrow{display:flex;gap:8px;margin-top:14px}
   .addrow input{flex:1}
 
-  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
-    background:var(--panel2);color:var(--text);padding:9px 16px;transition:.12s}
-  button:hover{border-color:var(--muted)}
-  button.primary{background:var(--accent);border-color:var(--accent);color:#0b0e14;font-weight:650}
-  button.primary:hover{background:var(--accent2);border-color:var(--accent2)}
-  button.primary:disabled{opacity:.45;cursor:not-allowed}
-  button.danger{border-color:#5a2730;color:var(--bad)}
-  button.ghost{background:transparent}
-  button.sm{padding:6px 11px;font-size:13px}
-  .toolbar{display:flex;gap:10px;align-items:center;margin-top:18px;flex-wrap:wrap}
-  .check{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+  /* buttons — pressed brass plates; primary = a desk stamp */
+  button{font:600 14px var(--sans);cursor:pointer;border-radius:6px;
+    border:1px solid var(--paper-edge);background:#efe6cd;color:var(--ink);
+    padding:9px 16px;transition:transform .06s, box-shadow .12s, background .12s;
+    box-shadow:0 2px 0 var(--ink-faint), 0 3px 5px rgba(0,0,0,.15)}
+  button:hover{background:#f6efdb}
+  button:active{transform:translateY(2px);box-shadow:0 0 0 var(--ink-faint)}
+  button:focus-visible{outline:none;box-shadow:0 2px 0 var(--ink-faint), 0 0 0 3px rgba(194,161,77,.45)}
+  button.primary{font-family:var(--serif);font-size:15px;letter-spacing:.04em;
+    background:linear-gradient(180deg,#bf4a42,var(--rule));color:#fbf1e6;
+    border:1px solid #7e2b25;text-shadow:0 1px 0 rgba(0,0,0,.3);
+    box-shadow:0 3px 0 #7e2b25, 0 5px 9px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.2)}
+  button.primary:hover{background:linear-gradient(180deg,#c8534b,#b8453e)}
+  button.primary:active{transform:translateY(3px);box-shadow:0 0 0 #7e2b25, inset 0 1px 3px rgba(0,0,0,.3)}
+  button.primary:disabled{opacity:.5;cursor:not-allowed;transform:none;
+    box-shadow:0 3px 0 #7e2b25}
+  button.gilt{background:linear-gradient(180deg,#d4b35e,var(--gilt));border-color:var(--gilt-dk);
+    color:#3c2a1e;box-shadow:0 3px 0 var(--gilt-dk), 0 5px 8px rgba(0,0,0,.25)}
+  button.gilt:active{transform:translateY(3px);box-shadow:0 0 0 var(--gilt-dk)}
+  button.gilt:disabled{opacity:.45;cursor:not-allowed}
+  button.danger{background:#efe6cd;color:var(--bad);border-color:#c9a59f}
+  button.sm{padding:6px 12px;font-size:13px;box-shadow:0 2px 0 var(--ink-faint)}
+  button.sm:active{box-shadow:0 0 0 var(--ink-faint)}
+  button.ghost{background:transparent;box-shadow:none;border-color:var(--paper-edge)}
+  button.ghost:active{transform:none}
+  .toolbar{display:flex;gap:11px;align-items:center;margin-top:20px;flex-wrap:wrap}
+  .check{display:flex;align-items:center;gap:7px;font:13px var(--sans);color:var(--ink-soft);cursor:pointer;user-select:none}
+  .check input{accent-color:var(--rule)}
 
-  details.adv{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
-  details.adv summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none;user-select:none}
+  details.adv{margin-top:18px;border-top:1px dashed var(--ink-faint);padding-top:15px}
+  details.adv summary{cursor:pointer;font:italic 13.5px var(--serif);color:var(--blue);list-style:none;user-select:none}
   details.adv summary::-webkit-details-marker{display:none}
-  details.adv summary::before{content:"▸ ";color:var(--faint)}
-  details.adv[open] summary::before{content:"▾ "}
+  details.adv summary::before{content:"§ "}
   details.adv .row{margin-top:14px}
 
-  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
-    padding:9px 14px;min-width:90px}
-  .stat b{display:block;font-size:21px;line-height:1.1}
-  .stat span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-  .console{background:#0b0d12;border:1px solid var(--line);border-radius:9px;
-    font:12.5px/1.55 var(--mono);padding:13px;height:300px;overflow:auto;white-space:pre-wrap;color:#c6cddb}
-  .console .ns{color:var(--good)} .console .err{color:var(--bad)} .console .ph{color:var(--accent2)}
+  /* ---------- live posting log ---------- */
+  .balance{display:flex;gap:0;flex-wrap:wrap;margin-bottom:16px;
+    border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+  .balance[hidden]{display:none}
+  .bcell{flex:1;min-width:84px;padding:9px 14px;border-right:1px solid var(--paper-edge);
+    background:linear-gradient(180deg,#fbf7ea,#efe6cd)}
+  .bcell:last-child{border-right:none}
+  .bcell b{display:block;font:600 24px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);line-height:1.1}
+  .bcell span{font:600 10px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
+  .ledgerlog{background:
+      repeating-linear-gradient(180deg, transparent 0 27px, rgba(58,90,140,.12) 27px 28px),
+      #fbf7ea;
+    border:1px solid var(--paper-edge);border-radius:4px;
+    font:13px/28px var(--mono);padding:0 14px;height:308px;overflow:auto;
+    color:var(--ink);white-space:pre-wrap;box-shadow:inset 0 1px 4px rgba(0,0,0,.07)}
+  .ledgerlog .ns{color:var(--good);font-weight:600}
+  .ledgerlog .err{color:var(--bad);font-weight:600}
+  .ledgerlog .ph{color:var(--blue);font-weight:600}
+  .ledgerlog .post{animation:settle .35s ease-out}
+  @keyframes settle{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 
+  .nib{display:inline-block;width:11px;height:11px;border-radius:50%;
+    background:var(--ink-faint);box-shadow:inset 0 0 0 2px rgba(0,0,0,.15)}
+  .nib.run{background:var(--warn);animation:pulse 1s infinite}
+  .nib.done{background:var(--good)}
+  @keyframes pulse{50%{opacity:.35}}
+
+  /* ---------- the ledger proper (green-bar paper) ---------- */
+  .filterslip{display:flex;gap:11px;flex-wrap:wrap;align-items:flex-end;
+    margin:4px 0 16px;padding:13px 14px;background:#fbf7ea;
+    border:1px solid var(--paper-edge);border-radius:5px;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.05)}
+  .filterslip[hidden]{display:none}
+  .filterslip .fld{min-width:118px}.filterslip .fld.grow{flex:1;min-width:170px}
+  .filterslip label{font-size:10px;margin-bottom:5px}
+
+  .tablewrap{border:1px solid var(--ink);border-radius:4px;overflow:auto;max-height:480px;
+    box-shadow:0 4px 12px -6px rgba(0,0,0,.3)}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
-  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;
-    cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;background:var(--panel)}
-  th.sortable:hover{color:var(--text)}
-  th .arr{opacity:.5;font-size:10px}
-  td.r,th.r{text-align:right}
-  tr.clk{cursor:pointer}
-  tr.clk:hover td{background:var(--panel2)}
-  .tag{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;white-space:nowrap}
-  .tag.LEADS{background:rgba(62,207,142,.14);color:var(--good)}
-  .tag.COMPETITORS{background:rgba(91,140,255,.14);color:var(--accent2)}
-  .tag.ALL{background:rgba(139,147,167,.14);color:var(--muted)}
-  .tier{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
-  .tier.A{background:rgba(62,207,142,.18);color:var(--good)}
-  .tier.B{background:rgba(91,140,255,.18);color:var(--accent2)}
-  .tier.C{background:rgba(245,166,35,.18);color:var(--warn)}
-  .tier.D{background:rgba(139,147,167,.15);color:var(--muted)}
-  .score{font-variant-numeric:tabular-nums;font-weight:650}
-  .ws-nosite{color:var(--good);font-size:12px;font-weight:600}
-  .ws-site{color:var(--faint);font-size:12px}
-  .linkbtn{background:none;border:none;color:var(--accent2);padding:0 6px;font-size:13px;cursor:pointer}
-  .linkbtn:hover{text-decoration:underline}
-  .empty{color:var(--muted);font-size:13.5px;padding:14px 0;text-align:center}
+  thead th{position:sticky;top:0;z-index:1;background:var(--leather);color:#eedfb4;
+    font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;
+    text-align:left;padding:9px 12px;cursor:pointer;user-select:none;white-space:nowrap;
+    border-right:1px solid rgba(0,0,0,.25);border-bottom:2px solid var(--gilt-dk)}
+  thead th:hover{color:#fff}
+  thead th .arr{color:var(--gilt);font-size:10px}
+  th.r,td.r{text-align:right}
+  /* green-bar accounting paper: alternating bands */
+  tbody tr{background:#fbf7ea}
+  tbody tr:nth-child(even){background:var(--paper-band)}
+  tbody tr.clk{cursor:pointer}
+  tbody tr.clk:hover{background:#fff7d8}
+  td{padding:8px 12px;border-bottom:1px solid var(--paper-edge);
+    border-right:1px solid rgba(0,0,0,.05);vertical-align:top;color:var(--ink)}
+  td.name{font:500 14px var(--serif)}
+  .fig{font:600 13.5px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+  .fig.blue{color:var(--blue)}
+  /* tier = a stamped letter */
+  .stamp{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;
+    font:800 13px var(--serif);border:2px solid;border-radius:4px;transform:rotate(-7deg)}
+  .stamp.A{color:var(--good);border-color:var(--good)}
+  .stamp.B{color:var(--blue);border-color:var(--blue)}
+  .stamp.C{color:var(--warn);border-color:var(--warn)}
+  .stamp.D{color:var(--ink-faint);border-color:var(--ink-faint)}
+  /* website status as an inked annotation */
+  .ws-nosite{font:700 11px var(--sans);letter-spacing:.04em;color:var(--rule)}
+  .ws-site{font:400 12px var(--serif);font-style:italic;color:var(--ink-soft)}
+  .reckind{font:700 10px var(--sans);letter-spacing:.05em;padding:2px 7px;border-radius:3px;border:1px solid}
+  .reckind.LEADS{color:var(--good);border-color:var(--good);background:rgba(47,125,82,.08)}
+  .reckind.COMPETITORS{color:var(--blue);border-color:var(--blue);background:rgba(58,90,140,.08)}
+  .reckind.ALL{color:var(--ink-soft);border-color:var(--ink-faint);background:rgba(0,0,0,.03)}
 
-  .filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:4px 0 16px;
-    background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:13px 14px}
-  .filterbar .fld{min-width:120px} .filterbar .fld.grow{flex:1;min-width:170px}
-  .filterbar label{font-size:11px;margin-bottom:5px}
-  .tablewrap{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:9px}
-  .resmeta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;
-    font-size:13px;color:var(--muted);flex-wrap:wrap;gap:10px}
+  .linkbtn{background:none;border:none;box-shadow:none;color:var(--blue);
+    padding:0 5px;font:13px var(--sans);cursor:pointer;text-decoration:underline}
+  .linkbtn:hover{color:var(--rule)}.linkbtn:active{transform:none}
+  .empty{color:var(--ink-soft);font:italic 14px var(--serif);padding:18px 0;text-align:center}
+  .resmeta{margin-top:12px;font:13px var(--mono);color:var(--ink-soft)}
 
-  .filelist{display:flex;flex-direction:column;gap:6px}
-  .filerow{display:flex;align-items:center;gap:10px;padding:8px 11px;background:var(--panel2);
-    border:1px solid var(--line);border-radius:8px;font-size:13px}
-  .filerow .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
-  .filerow .fn:hover{color:var(--accent2)}
-  .filerow .cnt{color:var(--muted);font-size:12px;white-space:nowrap}
+  .filelist{display:flex;flex-direction:column;gap:7px}
+  .filerow{display:flex;align-items:center;gap:11px;padding:9px 13px;background:#fbf7ea;
+    border:1px solid var(--paper-edge);border-left:3px solid var(--ink-faint);border-radius:4px;font-size:13px}
+  .filerow .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    cursor:pointer;font:500 14px var(--serif);color:var(--ink)}
+  .filerow .fn:hover{color:var(--blue);text-decoration:underline}
+  .filerow .cnt{font:13px var(--mono);color:var(--ink-soft);white-space:nowrap}
 
-  textarea{width:100%;height:220px;background:#0b0d12;border:1px solid var(--line);
-    color:#c6cddb;border-radius:9px;padding:12px;font:12.5px/1.5 var(--mono);resize:vertical}
-  .pill{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:0}
-  .pill.run{background:var(--warn);animation:pulse 1s infinite}
-  .pill.done{background:var(--good)}
-  @keyframes pulse{50%{opacity:.3}}
-  .dbpill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
-    background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:4px 12px}
-  .dbpill .dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
-  .dbpill.ok .dot{background:var(--good)} .dbpill.off .dot{background:var(--bad)}
-  .msg{font-size:13px} .msg.ok{color:var(--good)} .msg.err{color:var(--bad)} .msg.muted{color:var(--muted)}
+  textarea#sqlout{height:220px;font:12.5px/1.55 var(--mono);background:#2b2a26;color:#e7ecd6;
+    border-color:#1c1b18;box-shadow:inset 0 2px 6px rgba(0,0,0,.4)}
 
-  dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);
-    border-radius:12px;max-width:92vw;padding:0}
-  dialog::backdrop{background:rgba(0,0,0,.6)}
-  .modalhead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
-  .modalhead button{border:none;background:none;font-size:18px;color:var(--muted);padding:0 4px}
-  .modalbody{padding:14px 18px;max-height:74vh;overflow:auto}
-  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:13.5px}
-  .kv .k{color:var(--muted)}
-  .kv a{color:var(--accent2)}
+  /* DB seal */
+  .seal{display:inline-flex;align-items:center;gap:8px;font:13px var(--sans);color:var(--ink);
+    background:#efe6cd;border:1px solid var(--gilt-dk);border-radius:20px;padding:4px 13px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  .seal .wax{width:11px;height:11px;border-radius:50%;background:var(--ink-faint);
+    box-shadow:inset 0 1px 1px rgba(255,255,255,.5), 0 1px 1px rgba(0,0,0,.2)}
+  .seal.ok .wax{background:var(--good)} .seal.off .wax{background:var(--rule)}
+  .msg{font:13px var(--sans)}.msg.ok{color:var(--good)}.msg.err{color:var(--bad)}.msg.muted{color:var(--ink-soft)}
+  .runhint{font:italic 13px var(--serif)}
+
+  dialog{background:var(--paper);color:var(--ink);border:1px solid var(--ink);
+    border-radius:5px;max-width:92vw;padding:0;
+    box-shadow:0 24px 60px -20px rgba(0,0,0,.7);border-left:6px solid var(--rule)}
+  dialog::backdrop{background:rgba(20,11,5,.55)}
+  .modalhead{display:flex;justify-content:space-between;align-items:center;padding:15px 20px;
+    border-bottom:1.5px solid var(--ink);font:600 17px var(--serif)}
+  .modalhead button{border:none;background:none;box-shadow:none;font-size:18px;color:var(--ink-soft);padding:0 4px}
+  .modalbody{padding:16px 20px;max-height:74vh;overflow:auto}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:7px 16px;font-size:14px}
+  .kv .k{font:600 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);padding-top:2px}
+  .kv .v{font-family:var(--serif)} .kv a{color:var(--blue)}
+
+  @media (max-width:640px){
+    .wrap{padding:18px 12px 70px}
+    .sheet{padding:18px 16px 20px 26px}
+    .cover h1{font-size:22px}.folio{display:none}
+    .head{flex-wrap:wrap}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    button:active,.chip:hover{transform:none}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div class="logo">A</div>
-    <h1>Argora <span>— no-website prospecting</span></h1>
+
+  <header class="cover">
+    <div class="cover-row">
+      <div class="crest">A</div>
+      <div>
+        <h1>Argora</h1>
+        <span class="sub">Ledger of Prospects · No-Website Accounts</span>
+      </div>
+      <div class="folio"><b>Vol. I</b>Local Trade</div>
+    </div>
   </header>
-  <p class="note">⚠ Keep runs modest &amp; headed. Don't scrape the same area repeatedly,
-    don't add CAPTCHA/proxy evasion, don't commit scraped data. See <b>BARRIERS.md</b> before scaling.</p>
 
-  <!-- 1 · RUN -->
-  <div class="card">
-    <h2><span class="n">1</span> New run</h2>
+  <p class="notice">⚠ Keep runs modest &amp; headed. Don't re-scrape the same area, don't add
+    CAPTCHA/proxy evasion, don't commit scraped data. Consult <b>BARRIERS.md</b> before scaling.</p>
 
-    <label>Business categories <span style="color:var(--faint)">— pick presets and/or add your own</span></label>
-    <input type="text" id="chipfilter" placeholder="filter presets…" style="margin-bottom:10px;max-width:280px">
+  <!-- 1 · OPEN AN ENTRY -->
+  <section class="sheet">
+    <div class="head"><span class="fol">fol. 1</span><h2>Open an entry</h2>
+      <span class="desc">choose the trades to canvass, then a locality</span></div>
+
+    <label>Trades <span class="lc">— preset accounts, ranked on entry. Add any of your own below.</span></label>
+    <input type="text" id="chipfilter" placeholder="filter the index…" style="max-width:280px;margin-bottom:11px">
     <div class="chips" id="chips"></div>
 
     <div class="addrow">
-      <input type="text" id="customin" placeholder="add any business type — e.g. yoga studio, car detailing, cafe"
-        autocomplete="off">
-      <button class="sm" id="addcustom">+ Add</button>
+      <input type="text" id="customin" autocomplete="off"
+        placeholder="write in any trade — e.g. yoga studio, car detailing, cafe">
+      <button class="sm" id="addcustom">+ Enter</button>
     </div>
-    <div class="chips" id="customchips" style="margin-top:10px"></div>
+    <div class="chips" id="customchips" style="margin-top:11px"></div>
 
-    <div class="row" style="margin-top:18px">
+    <div class="row" style="margin-top:20px">
       <div style="flex:2">
-        <label>Location <span style="color:var(--faint)">(scrape area-by-area — Google caps ~120/search)</span></label>
+        <label>Locality <span class="lc">— canvass area by area; Google caps ~120 a search</span></label>
         <input type="text" id="loc" placeholder="e.g. Jayanagar, Bengaluru" autocomplete="off">
       </div>
       <div style="flex:0 0 120px">
@@ -179,48 +317,48 @@
     </div>
 
     <details class="adv">
-      <summary>Advanced options</summary>
+      <summary>Posting terms</summary>
       <div class="row">
-        <div style="flex:0 0 200px">
-          <label>Min reviews floor <span style="color:var(--faint)">(blank = preset default)</span></label>
+        <div style="flex:0 0 210px">
+          <label>Min reviews floor <span class="lc">(blank = preset)</span></label>
           <input type="number" id="minrev" placeholder="preset default" min="0">
         </div>
         <div style="flex:1;display:flex;align-items:flex-end">
-          <label class="check" style="margin-bottom:9px"><input type="checkbox" id="headless"> run headless <span style="color:var(--faint)">(higher throttle risk)</span></label>
+          <label class="check" style="margin-bottom:9px"><input type="checkbox" id="headless"> run headless <span class="lc">&nbsp;(higher throttle risk)</span></label>
         </div>
       </div>
     </details>
 
     <div class="toolbar">
-      <button class="primary" id="go">▶ Go</button>
-      <button class="danger" id="stop" style="display:none">■ Stop</button>
-      <span id="runhint" class="msg muted"></span>
+      <button class="primary" id="go">▤ Post the run</button>
+      <button class="danger" id="stop" style="display:none">■ Halt</button>
+      <span id="runhint" class="runhint"></span>
     </div>
-  </div>
+  </section>
 
-  <!-- 2 · LIVE -->
-  <div class="card">
-    <h2><span class="pill" id="pill"></span><span class="n">2</span> Live</h2>
-    <div class="stats" id="stats" style="display:none"></div>
-    <div class="console" id="console">Idle — pick categories and a location, then hit Go.</div>
-  </div>
+  <!-- 2 · POSTING -->
+  <section class="sheet">
+    <div class="head"><span class="fol">fol. 2</span><h2>Posting</h2>
+      <span class="desc">each account is entered as it's canvassed</span>
+      <span class="right"><span class="nib" id="pill"></span></span></div>
+    <div class="balance" id="stats" hidden></div>
+    <div class="ledgerlog" id="console">Awaiting instruction — choose trades and a locality, then post the run.</div>
+  </section>
 
-  <!-- 3 · RESULTS -->
-  <div class="card">
-    <h2><span class="n">3</span> Results <span class="sub">filter &amp; sort the leads you scraped</span></h2>
+  <!-- 3 · THE LEDGER -->
+  <section class="sheet">
+    <div class="head"><span class="fol">fol. 3</span><h2>The ledger</h2>
+      <span class="desc">sort &amp; sift the accounts you've entered</span></div>
     <div class="row" style="align-items:flex-end">
-      <div style="flex:2">
-        <label>File</label>
-        <select id="resfile"></select>
-      </div>
+      <div style="flex:2"><label>Book</label><select id="resfile"></select></div>
       <div style="flex:0 0 auto;display:flex;gap:8px;align-items:flex-end">
         <button class="sm" id="refresh">↻ Refresh</button>
         <button class="sm" id="dlcur">↓ Download</button>
       </div>
     </div>
 
-    <div class="filterbar" id="filterbar" style="display:none">
-      <div class="fld grow"><label>Search name / category</label><input type="text" id="fSearch" placeholder="type to filter…"></div>
+    <div class="filterslip" id="filterbar" hidden>
+      <div class="fld grow"><label>Search name / trade</label><input type="text" id="fSearch" placeholder="type to sift…"></div>
       <div class="fld"><label>Website</label>
         <select id="fWeb"><option value="">any</option><option value="NO-SITE">NO-SITE (lead)</option><option value="has-site">has-site</option></select></div>
       <div class="fld"><label>Tier</label>
@@ -231,27 +369,29 @@
       <div class="fld" style="display:flex;align-items:flex-end"><button class="sm ghost" id="fClear">Clear</button></div>
     </div>
 
-    <div class="tablewrap" id="restable"><div class="empty">No file selected.</div></div>
-    <div class="resmeta"><span id="rescount"></span></div>
+    <div class="tablewrap" id="restable"><div class="empty">No book opened.</div></div>
+    <div class="resmeta" id="rescount"></div>
 
-    <h2 style="margin-top:24px"><span class="sub" style="text-transform:none">All extracted files (data/leads/, git-ignored)</span></h2>
-    <div class="filelist" id="files"><div class="empty">No files yet.</div></div>
-  </div>
+    <div class="head" style="margin-top:26px;border-bottom-width:1px">
+      <h2 style="font-size:16px">Books on file</h2>
+      <span class="desc">data/leads/ — kept local, never committed</span></div>
+    <div class="filelist" id="files"><div class="empty">No books yet.</div></div>
+  </section>
 
-  <!-- 4 · SQL + PUSH -->
-  <div class="card">
-    <h2><span class="n">4</span> Supabase <span class="sub">generate SQL or push directly</span>
-      <span style="flex:1"></span><span class="dbpill" id="dbpill"><span class="dot"></span><span id="dbtext">checking DB…</span></span>
-    </h2>
+  <!-- 4 · POST TO THE MASTER -->
+  <section class="sheet">
+    <div class="head"><span class="fol">fol. 4</span><h2>Post to the master</h2>
+      <span class="desc">to the KunthiveOS books — by hand or direct</span>
+      <span class="right"><span class="seal" id="dbpill"><span class="wax"></span><span id="dbtext">checking books…</span></span></span></div>
     <div class="row">
-      <div style="flex:2"><label>LEADS file</label><select id="sqlcsv"></select></div>
-      <div><label>source_dataset (provenance tag)</label><input type="text" id="dataset" placeholder="argora/<file>"></div>
+      <div style="flex:2"><label>Leads book</label><select id="sqlcsv"></select></div>
+      <div><label>Source dataset <span class="lc">(provenance)</span></label><input type="text" id="dataset" placeholder="argora/<book>"></div>
     </div>
-    <p class="note" style="margin:12px 0 0;background:rgba(91,140,255,.06);border-color:rgba(91,140,255,.18)">
-      INSERT-only · skips by place-id <b style="color:var(--accent2)">and</b> phone · <code>ON CONFLICT</code> backstop → safe to re-run, never duplicates.</p>
+    <p class="notice" style="margin:14px 0 0;background:rgba(58,90,140,.1);border-color:rgba(58,90,140,.4);border-left-color:var(--blue);color:var(--ink)">
+      INSERT-only · skips by place-id <b style="color:var(--blue)">and</b> phone · <code>ON CONFLICT</code> backstop → safe to re-run, never duplicates.</p>
     <div class="toolbar">
-      <button class="primary" id="gensql">Generate SQL</button>
-      <button id="pushdb" disabled title="needs a reachable DB">⤴ Push to DB</button>
+      <button class="primary" id="gensql">Draft the SQL</button>
+      <button class="gilt" id="pushdb" disabled title="needs a reachable book">⤴ Post direct</button>
       <label class="check"><input type="checkbox" id="hassite"> include has-site rows</label>
       <span id="sqlmeta" class="msg muted"></span>
     </div>
@@ -260,11 +400,11 @@
       <button id="copysql">Copy</button>
       <button id="dlsql">Download .sql</button>
     </div>
-  </div>
+  </section>
 </div>
 
 <dialog id="preview">
-  <div class="modalhead"><b id="pvtitle"></b><button onclick="document.getElementById('preview').close()">✕</button></div>
+  <div class="modalhead"><span id="pvtitle"></span><button onclick="document.getElementById('preview').close()">✕</button></div>
   <div class="modalbody" id="pvbody"></div>
 </dialog>
 
@@ -274,7 +414,7 @@ const api=(p,o)=>fetch(p,o).then(r=>r.ok?r.json():r.json().then(e=>Promise.rejec
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let selected=new Set(), customCats=[], es=null, sqlText="", sqlFile="";
 
-/* ---------- 1 · categories ---------- */
+/* ---------- 1 · trades ---------- */
 api('/api/sectors').then(list=>{
   const box=$('#chips'); box.innerHTML='';
   list.forEach(s=>{
@@ -286,8 +426,7 @@ api('/api/sectors').then(list=>{
 });
 $('#chipfilter').oninput=e=>{
   const q=e.target.value.toLowerCase();
-  $('#chips').querySelectorAll('.chip').forEach(c=>
-    c.classList.toggle('hidden', !c.dataset.key.includes(q)));
+  $('#chips').querySelectorAll('.chip').forEach(c=>c.classList.toggle('hidden',!c.dataset.key.includes(q)));
 };
 function renderCustom(){
   const box=$('#customchips'); box.innerHTML='';
@@ -306,29 +445,29 @@ function addCustom(){
 $('#addcustom').onclick=addCustom;
 $('#customin').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addCustom();}};
 
-/* ---------- 2 · run + live ---------- */
+/* ---------- 2 · post + posting log ---------- */
 function logLine(line){
-  const c=$('#console'); let cls='';
-  if(/NO-SITE/.test(line))cls='ns'; if(/^✗|error/i.test(line))cls='err'; if(/^▶/.test(line))cls='ph';
-  const span=document.createElement('span'); if(cls)span.className=cls; span.textContent=line+'\n';
+  const c=$('#console'); let cls='post';
+  if(/NO-SITE/.test(line))cls+=' ns'; if(/^✗|error/i.test(line))cls+=' err'; if(/^▶/.test(line))cls+=' ph';
+  const span=document.createElement('span'); span.className=cls; span.textContent=line+'\n';
   c.appendChild(span); c.scrollTop=c.scrollHeight;
 }
 function renderStats(){
-  const box=$('#stats'); if(!window._sum||!window._sum.length){box.style.display='none';return;}
-  box.style.display='flex';
+  const box=$('#stats'); if(!window._sum||!window._sum.length){box.hidden=true;return;}
+  box.hidden=false;
   const t=window._sum.reduce((a,s)=>({l:a.l+s.leads,c:a.c+s.competitors,n:a.n+s.scraped}),{l:0,c:0,n:0});
-  box.innerHTML=`<div class="stat"><b>${t.l}</b><span>leads</span></div>
-    <div class="stat"><b>${t.c}</b><span>competitors</span></div>
-    <div class="stat"><b>${t.n}</b><span>scraped</span></div>
-    <div class="stat"><b>${window._sum.length}</b><span>categories</span></div>`;
+  box.innerHTML=`<div class="bcell"><b>${t.l}</b><span>leads</span></div>
+    <div class="bcell"><b>${t.c}</b><span>competitors</span></div>
+    <div class="bcell"><b>${t.n}</b><span>canvassed</span></div>
+    <div class="bcell"><b>${window._sum.length}</b><span>trades</span></div>`;
 }
 function setRunning(on){
   $('#go').disabled=on; $('#stop').style.display=on?'inline-block':'none';
-  $('#pill').className='pill '+(on?'run':'done');
+  $('#pill').className='nib '+(on?'run':'done');
 }
 $('#go').onclick=async()=>{
-  if(!selected.size && !customCats.length){$('#runhint').textContent='Pick a preset or add a custom category.';return;}
-  if(!$('#loc').value.trim()){$('#runhint').textContent='Enter a location.';return;}
+  if(!selected.size && !customCats.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Choose a trade or write one in.';return;}
+  if(!$('#loc').value.trim()){$('#runhint').className='runhint msg err';$('#runhint').textContent='Name a locality.';return;}
   $('#runhint').textContent=''; $('#console').innerHTML=''; window._sum=[]; renderStats(); setRunning(true);
   const mr=$('#minrev').value.trim();
   try{
@@ -342,43 +481,39 @@ $('#go').onclick=async()=>{
       else if(m.kind==='phase')logLine('── '+m.label+' ──');
       else if(m.kind==='summary'){window._sum.push(m); renderStats();}
       else if(m.kind==='error')logLine('✗ '+m.message);
-      else if(m.kind==='done'){es.close(); setRunning(false); logLine('● done.'); loadFiles();}
+      else if(m.kind==='done'){es.close(); setRunning(false); logLine('● run posted.'); loadFiles();}
     };
     es.onerror=()=>{logLine('✗ stream lost'); es.close(); setRunning(false);};
   }catch(err){logLine('✗ '+err); setRunning(false);}
 };
-$('#stop').onclick=()=>{api('/api/stop',{method:'POST'}); logLine('· stop requested…');};
+$('#stop').onclick=()=>{api('/api/stop',{method:'POST'}); logLine('· halt requested…');};
 
-/* ---------- 3 · results browser ---------- */
+/* ---------- 3 · the ledger ---------- */
 let curRows=[], curCols=[], sortCol='score', sortDir=-1;
 const NUM=new Set(['score','reviews','rating']);
 const COLS=['name','category','phone','rating','reviews','website_status','score','tier','rank_tags'];
 
 async function loadFiles(){
   const files=await api('/api/files');
-  // file list
   const box=$('#files');
-  if(!files.length){box.innerHTML='<div class="empty">No files yet — run a scrape above.</div>';}
+  if(!files.length){box.innerHTML='<div class="empty">No books yet — post a run above.</div>';}
   else{box.innerHTML=files.map(f=>`<div class="filerow">
-      <span class="tag ${f.kind}">${f.kind}</span>
+      <span class="reckind ${f.kind}">${f.kind}</span>
       <span class="fn" onclick="prev('${esc(f.name)}')" title="preview">${esc(f.name)}</span>
       <span class="cnt">${f.rows} rows</span>
       <button class="linkbtn" onclick="location.href='/api/download/${encodeURIComponent(f.name)}'">download</button>
     </div>`).join('');}
-  // selects
-  const resSel=$('#resfile'), prev=resSel.value;
+  const resSel=$('#resfile'), prevSel=resSel.value;
   resSel.innerHTML=files.map(f=>`<option>${esc(f.name)}</option>`).join('')||'<option value="">— none —</option>';
-  if(files.some(f=>f.name===prev)) resSel.value=prev;
+  if(files.some(f=>f.name===prevSel)) resSel.value=prevSel;
   $('#sqlcsv').innerHTML=files.filter(f=>f.kind==='LEADS').map(f=>`<option>${esc(f.name)}</option>`).join('')
-    ||'<option value="">— no LEADS files —</option>';
+    ||'<option value="">— no leads books —</option>';
   if(files.length && resSel.value) loadResults(resSel.value);
 }
 async function loadResults(name){
   if(!name)return;
   const d=await api('/api/preview/'+encodeURIComponent(name)+'?limit=5000');
-  curCols=d.columns; curRows=d.rows;
-  $('#filterbar').style.display='flex';
-  renderTable();
+  curCols=d.columns; curRows=d.rows; $('#filterbar').hidden=false; renderTable();
 }
 function activeFilters(){
   return {q:$('#fSearch').value.toLowerCase().trim(), web:$('#fWeb').value, tier:$('#fTier').value,
@@ -401,61 +536,59 @@ function renderTable(){
     return (x<y?-1:x>y?1:0)*sortDir;
   });
   const cols=COLS.filter(c=>curCols.includes(c));
-  if(!curRows.length){$('#restable').innerHTML='<div class="empty">This file is empty.</div>';$('#rescount').textContent='';return;}
+  if(!curRows.length){$('#restable').innerHTML='<div class="empty">This book is empty.</div>';$('#rescount').textContent='';return;}
   let h='<table><thead><tr>'+cols.map(c=>{
     const arr=sortCol===c?(sortDir<0?'▼':'▲'):'';
-    return `<th class="sortable ${NUM.has(c)?'r':''}" onclick="sortBy('${c}')">${c.replace('_',' ')} <span class="arr">${arr}</span></th>`;
+    return `<th class="${NUM.has(c)?'r':''}" onclick="sortBy('${c}')">${c.replace('_',' ')} <span class="arr">${arr}</span></th>`;
   }).join('')+'</tr></thead><tbody>';
   rows.forEach((r,i)=>{
     h+=`<tr class="clk" onclick="rowDetail(${i})">`+cols.map(c=>{
       let v=r[c]??'';
-      if(c==='score')return `<td class="r"><span class="score">${esc(v)}</span></td>`;
-      if(c==='tier')return `<td><span class="tier ${esc(v)}">${esc(v)}</span></td>`;
+      if(c==='name')return `<td class="name">${esc((''+v).slice(0,60))||'<span style="color:var(--ink-faint)">(no name)</span>'}</td>`;
+      if(c==='score')return `<td class="r"><span class="fig blue">${esc(v)}</span></td>`;
+      if(c==='tier')return `<td>${v?`<span class="stamp ${esc(v)}">${esc(v)}</span>`:''}</td>`;
       if(c==='website_status')return `<td><span class="${v==='NO-SITE'?'ws-nosite':'ws-site'}">${esc(v)}</span></td>`;
-      if(NUM.has(c))return `<td class="r">${esc(v)}</td>`;
+      if(NUM.has(c))return `<td class="r"><span class="fig">${esc(v)}</span></td>`;
       return `<td>${esc((''+v).slice(0,55))}</td>`;
     }).join('')+'</tr>';
   });
   $('#restable').innerHTML=h+'</tbody></table>';
   window._filtered=rows;
-  $('#rescount').textContent=`${rows.length} of ${curRows.length} rows`;
+  $('#rescount').textContent=`${rows.length} of ${curRows.length} entries`;
 }
 window.sortBy=c=>{ if(sortCol===c)sortDir*=-1; else{sortCol=c;sortDir=NUM.has(c)?-1:1;} renderTable(); };
 window.rowDetail=i=>{
   const r=window._filtered[i]; if(!r)return;
   $('#pvtitle').textContent=r.name||'(no name)';
   $('#pvbody').innerHTML='<div class="kv">'+curCols.map(c=>{
-    let v=r[c]??''; if(c==='maps_url'&&v)v=`<a href="${esc(v)}" target="_blank">open map ↗</a>`;
-    else if(c==='website'&&v&&v!=='')v=`<a href="${esc(v)}" target="_blank">${esc(v)}</a>`;
+    let v=r[c]??'';
+    if(c==='maps_url'&&v)v=`<a href="${esc(v)}" target="_blank" rel="noopener">open map ↗</a>`;
+    else if(c==='website'&&v)v=`<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
     else v=esc(v);
-    return `<div class="k">${c.replace('_',' ')}</div><div>${v||'<span style="color:var(--faint)">—</span>'}</div>`;
+    return `<div class="k">${c.replace('_',' ')}</div><div class="v">${v||'<span style="color:var(--ink-faint)">—</span>'}</div>`;
   }).join('')+'</div>';
   $('#preview').showModal();
 };
-['fSearch','fWeb','fTier','fScore','fRating','fRev'].forEach(id=>{
-  $('#'+id).addEventListener('input',renderTable);
-});
-$('#fClear').onclick=()=>{['fSearch','fScore','fRating','fRev'].forEach(id=>$('#'+id).value='');
-  $('#fWeb').value='';$('#fTier').value=''; renderTable();};
+['fSearch','fWeb','fTier','fScore','fRating','fRev'].forEach(id=>$('#'+id).addEventListener('input',renderTable));
+$('#fClear').onclick=()=>{['fSearch','fScore','fRating','fRev'].forEach(id=>$('#'+id).value='');$('#fWeb').value='';$('#fTier').value='';renderTable();};
 $('#resfile').onchange=e=>loadResults(e.target.value);
 $('#refresh').onclick=loadFiles;
 $('#dlcur').onclick=()=>{const n=$('#resfile').value; if(n)location.href='/api/download/'+encodeURIComponent(n);};
 
-/* legacy modal preview for the file list */
 window.prev=async name=>{
   const d=await api('/api/preview/'+encodeURIComponent(name));
   $('#pvtitle').textContent=name+'  ·  '+d.total+' rows';
   if(!d.rows.length){$('#pvbody').innerHTML='<div class="empty">empty</div>';}
-  else{let h='<table><tr>'+d.columns.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
+  else{let h='<table><thead><tr>'+d.columns.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr></thead><tbody>';
     d.rows.forEach(r=>{h+='<tr>'+d.columns.map(c=>`<td>${esc((''+(r[c]||'')).slice(0,60))}</td>`).join('')+'</tr>';});
-    $('#pvbody').innerHTML='<div style="overflow:auto">'+h+'</table></div>';}
+    $('#pvbody').innerHTML='<div style="overflow:auto">'+h+'</tbody></table></div>';}
   $('#preview').showModal();
 };
 
-/* ---------- 4 · SQL + push ---------- */
+/* ---------- 4 · post to the master ---------- */
 $('#gensql').onclick=async()=>{
-  const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No LEADS file.';return;}
-  $('#sqlmeta').className='msg muted'; $('#sqlmeta').textContent='generating…';
+  const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No leads book.';return;}
+  $('#sqlmeta').className='msg muted'; $('#sqlmeta').textContent='drafting…';
   try{
     const d=await api('/api/sql',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({csv,dataset:$('#dataset').value||null,include_has_site:$('#hassite').checked})});
@@ -464,27 +597,27 @@ $('#gensql').onclick=async()=>{
     $('#sqlmeta').className='msg ok'; $('#sqlmeta').textContent=`✓ ${d.count} rows → data/sql/${d.file}`;
   }catch(err){$('#sqlmeta').className='msg err'; $('#sqlmeta').textContent='✗ '+err;}
 };
-$('#copysql').onclick=()=>{navigator.clipboard.writeText(sqlText); $('#copysql').textContent='Copied ✓'; setTimeout(()=>$('#copysql').textContent='Copy',1200);};
+$('#copysql').onclick=()=>{navigator.clipboard.writeText(sqlText);$('#copysql').textContent='Copied ✓';setTimeout(()=>$('#copysql').textContent='Copy',1200);};
 $('#dlsql').onclick=()=>location.href='/api/download/'+encodeURIComponent(sqlFile);
 
 async function refreshDbStatus(){
   const pill=$('#dbpill'), txt=$('#dbtext'), btn=$('#pushdb');
   try{
     const s=await api('/api/db-status');
-    if(s.reachable){pill.className='dbpill ok';txt.textContent=`DB connected · ${s.leads_total} leads`;btn.disabled=false;}
-    else if(s.configured){pill.className='dbpill off';txt.textContent='DB unreachable';btn.disabled=true;btn.title=s.detail||'';}
-    else{pill.className='dbpill off';txt.textContent='DB not configured';btn.disabled=true;btn.title=s.detail||'';}
-  }catch(e){pill.className='dbpill off';txt.textContent='DB status error';btn.disabled=true;}
+    if(s.reachable){pill.className='seal ok';txt.textContent=`books open · ${s.leads_total} leads`;btn.disabled=false;}
+    else if(s.configured){pill.className='seal off';txt.textContent='books unreachable';btn.disabled=true;btn.title=s.detail||'';}
+    else{pill.className='seal off';txt.textContent='books not configured';btn.disabled=true;btn.title=s.detail||'';}
+  }catch(e){pill.className='seal off';txt.textContent='status error';btn.disabled=true;}
 }
 $('#pushdb').onclick=async()=>{
-  const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No LEADS file.';return;}
-  if(!confirm('Push leads from '+csv+' into the KunthiveOS database?\n(INSERT-only & idempotent — safe to re-run.)'))return;
-  $('#sqlmeta').className='msg muted'; $('#sqlmeta').textContent='pushing…';
+  const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No leads book.';return;}
+  if(!confirm('Post leads from '+csv+' into the KunthiveOS books?\n(INSERT-only & idempotent — safe to re-run.)'))return;
+  $('#sqlmeta').className='msg muted'; $('#sqlmeta').textContent='posting…';
   try{
     const d=await api('/api/push-db',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({csv,dataset:$('#dataset').value||null,include_has_site:$('#hassite').checked})});
     $('#sqlmeta').className='msg ok';
-    $('#sqlmeta').textContent=`✓ pushed ${d.inserted} new of ${d.attempted} candidates`+(d.note?` · ${d.note}`:'');
+    $('#sqlmeta').textContent=`✓ posted ${d.inserted} new of ${d.attempted} candidates`+(d.note?` · ${d.note}`:'');
     refreshDbStatus();
   }catch(err){$('#sqlmeta').className='msg err'; $('#sqlmeta').textContent='✗ '+err;}
 };

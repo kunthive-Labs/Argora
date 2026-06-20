@@ -1,5 +1,7 @@
 # Argora
 
+> Free, Apify-free Google Maps lead-gen for no-website prospecting — for small B2B outreach teams who'd rather call businesses that have no website.
+
 Free Google Maps lead-gen for **no-website prospecting** — find local businesses
 that have no website while their same-category competitors do, then pitch them one.
 
@@ -32,6 +34,16 @@ data/sql/        ← generated Supabase sql (git-ignored)
 The split is deliberate: the scraper is a maintenance treadmill (selectors rot,
 IPs throttle). The analysis layer — your real moat — never breaks when Google
 changes its markup.
+
+## 🛠️ Tech Stack
+
+- **Python 3** — the whole stack
+- **Playwright** (Chromium) — drives Google Maps for extraction (`leadfinder/scraper.py`)
+- **FastAPI** + **Uvicorn** — web backend, live log streaming over SSE (`webapp/server.py`)
+- **Vanilla HTML/JS** — single-file UI, no build step (`webapp/static/index.html`)
+- **CSV** + generated **Supabase / PostgreSQL** SQL — the deliverables and the KunthiveOS hand-off (`leadfinder/sql_gen.py`)
+
+Dependencies: see `requirements.txt` (`playwright`, `fastapi`, `uvicorn[standard]`).
 
 ## Setup (one time)
 
@@ -141,3 +153,11 @@ volume. Don't add CAPTCHA-evasion machinery; keep runs small and outreach legit.
 `maps-lead-gen` is the **Apify-based** version (pay-per-event, `compass/crawler-google-places`).
 This repo is the **free Playwright** version. `analyze.py` here is column-compatible
 with that repo's Apify JSON, so you can mix sources.
+
+## 📄 License
+
+No `LICENSE` file is published. Treat as **Proprietary — Kunthive** unless stated otherwise.
+
+---
+
+Part of [kunthive-Labs](https://github.com/kunthive-Labs) — open experiments in AI & tooling.

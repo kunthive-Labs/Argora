@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+# keep the structure, ignore bulky raw pulls if you prefer:
+# data/raw/*.json

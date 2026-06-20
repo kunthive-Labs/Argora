@@ -11,7 +11,9 @@ omkarcloud, gosom, Apify) and produces:
 
 It auto-normalizes column names, so it doesn't care which scraper produced the
 input. It dedupes, treats empty / "none" / social-only links as "no website",
-and ranks by a transparent reviews * rating score.
+and ranks each lead with the 5-dimension algorithm in `ranking.py`
+(score 0–100, tier, tags, breakdown) — see
+KunthiveOS/docs/handover-lead-ranking-algorithm.md.
 
 Usage:
     python -m leadfinder.analyze raw/driving-jayanagar.json \\
@@ -26,6 +28,8 @@ import glob
 import json
 import re
 import sys
+
+from leadfinder import ranking
 
 # ---- column normalization ---------------------------------------------------
 # Map the many names different scrapers use onto our canonical fields.
@@ -85,13 +89,9 @@ def _to_float(v):
 
 
 def has_real_website(website):
-    """True only if there's a genuine business site (not blank/none/social)."""
-    w = website.strip().lower()
-    if not w or w in ("none", "n/a", "na", "-", "null"):
-        return False
-    if not re.search(r"\.[a-z]{2,}", w):  # no domain-looking thing at all
-        return False
-    return not any(host in w for host in SOCIAL_HOSTS)
+    """True only if there's a genuine business site (not blank/none/social).
+    Delegates to ranking.web_status so the social/builder list is single-source."""
+    return ranking.web_status(website) == "real"
 
 
 def dedupe(records):
@@ -107,10 +107,9 @@ def dedupe(records):
     return out
 
 
-def score(r):
-    """Transparent ranking: more reviews + higher rating = hotter lead.
-    log-free, intentionally simple so it's explainable to yourself."""
-    return r["reviews"] * (r["rating"] if r["rating"] else 3.0)
+def _postal(address):
+    m = re.search(r"\b(\d{6})\b", address or "")
+    return m.group(1) if m else ""
 
 
 def matches_sector(r, exclude):
@@ -126,21 +125,50 @@ def analyze(records, exclude=None, min_reviews=0):
     records = [r for r in records if matches_sector(r, exclude)]
     records = [r for r in records if r["reviews"] >= min_reviews]
 
+    # phones appearing on more than one record (Step 4: 'duplicate' tag)
+    phone_counts = {}
+    for r in records:
+        if r["phone"]:
+            phone_counts[r["phone"]] = phone_counts.get(r["phone"], 0) + 1
+
     for r in records:
         r["has_website"] = has_real_website(r["website"])
         r["website_status"] = "has-site" if r["has_website"] else "NO-SITE"
-        r["score"] = round(score(r), 1)
+        res = ranking.rank(
+            name=r["name"], phone=r["phone"], website=r["website"],
+            category=r["category"], postal=_postal(r.get("address", "")),
+            rating=r["rating"] or None, reviews=r["reviews"],
+            is_duplicate=phone_counts.get(r["phone"], 0) > 1)
+        r["score"] = res["score"]
+        r["tier"] = res["tier"]
+        r["rank_tags"] = res["tags"]
+        r["score_breakdown"] = res["breakdown"]
+        r["web_status"] = res["web_status"]
+        r["disqualified"] = res["disqualified"]
 
-    records.sort(key=lambda r: r["score"], reverse=True)
-
-    leads = [r for r in records if not r["has_website"] and r["phone"]]
+    # leads = no real website, reachable, and not hard-disqualified — ranked
+    leads = [r for r in records
+             if not r["has_website"] and r["phone"] and not r["disqualified"]]
+    leads.sort(key=ranking.sort_key, reverse=True)
     competitors = [r for r in records if r["has_website"]]
+    competitors.sort(key=ranking.sort_key, reverse=True)
+    records.sort(key=ranking.sort_key, reverse=True)
     return records, leads, competitors
 
 
 # ---- io ---------------------------------------------------------------------
 COLUMNS = ["name", "phone", "category", "area", "rating", "reviews",
-           "website", "website_status", "score", "address", "maps_url"]
+           "website", "website_status", "score", "tier", "rank_tags",
+           "score_breakdown", "address", "maps_url"]
+
+
+def _csv_value(v):
+    """Serialise list/dict cells (rank_tags, score_breakdown) for the CSV."""
+    if isinstance(v, list):
+        return ";".join(v)
+    if isinstance(v, dict):
+        return json.dumps(v, separators=(",", ":"))
+    return v
 
 
 def load(paths):
@@ -159,7 +187,7 @@ def write_csv(path, rows):
         w.writeheader()
         for r in rows:
             r.setdefault("area", "")
-            w.writerow(r)
+            w.writerow({c: _csv_value(r.get(c, "")) for c in COLUMNS})
 
 
 def main(argv=None):

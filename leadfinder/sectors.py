@@ -69,6 +69,30 @@ SECTORS = {
         "exclude": ["dental", "veterinary", "diagnostic lab"],
         "min_reviews": 15,
     },
+    "law-firm": {
+        "query": "law firm",
+        "exclude": ["college", "university", "notary public", "legal software",
+                    "recruitment", "stationery", "books"],
+        "min_reviews": 5,
+    },
+    "advocate": {
+        "query": "advocate",
+        "exclude": ["college", "institute", "coaching", "real estate",
+                    "law firm software"],
+        "min_reviews": 3,
+    },
+    "photo-studio": {
+        "query": "photography studio",
+        "exclude": ["camera store", "equipment", "rental", "frame shop",
+                    "mobile", "printing press", "xerox"],
+        "min_reviews": 5,
+    },
+    "photographer": {
+        "query": "photographer",
+        "exclude": ["camera store", "equipment", "rental", "drone shop",
+                    "academy", "institute"],
+        "min_reviews": 3,
+    },
 }
 
 

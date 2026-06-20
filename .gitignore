@@ -3,5 +3,12 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
-# keep the structure, ignore bulky raw pulls if you prefer:
-# data/raw/*.json
+
+# Scraped data + generated SQL = local only (PII; never push by mistake).
+# The .gitkeep files keep the folders tracked; the contents stay out.
+data/raw/*
+data/leads/*
+data/sql/*
+!data/raw/.gitkeep
+!data/leads/.gitkeep
+!data/sql/.gitkeep

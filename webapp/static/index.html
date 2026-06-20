@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>maps-lead-finder</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#272c38;
+    --text:#e6e9ef; --muted:#8b93a7; --accent:#5b8cff; --good:#3ecf8e;
+    --warn:#f5a623; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:20px;margin:0;font-weight:650;letter-spacing:.2px}
+  h1 span{color:var(--muted);font-weight:400;font-size:14px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);margin:0 0 14px;font-weight:600}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+  .note{font-size:12.5px;color:var(--muted);margin:0 0 22px}
+  .note a{color:var(--accent);text-decoration:none}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:20px;margin-bottom:18px}
+  label{display:block;font-size:12.5px;color:var(--muted);margin:0 0 6px}
+  input[type=text],input[type=number],select{width:100%;background:var(--panel2);
+    border:1px solid var(--line);color:var(--text);border-radius:8px;
+    padding:9px 11px;font-size:14px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:160px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--line);background:var(--panel2);border-radius:20px;
+    padding:6px 13px;font-size:13px;cursor:pointer;user-select:none;transition:.12s}
+  .chip:hover{border-color:var(--muted)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#0b0e14;font-weight:600}
+  .chip small{opacity:.6;margin-left:5px}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);padding:9px 16px;transition:.12s}
+  button:hover{border-color:var(--muted)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#0b0e14;font-weight:650}
+  button.primary:disabled{opacity:.45;cursor:not-allowed}
+  button.danger{border-color:#5a2730;color:#ff8a9a}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-top:18px}
+  .check{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);cursor:pointer}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+    padding:9px 13px;min-width:96px}
+  .stat b{display:block;font-size:20px;line-height:1.1}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .console{background:#0b0d12;border:1px solid var(--line);border-radius:9px;
+    font:12.5px/1.55 var(--mono);padding:13px;height:300px;overflow:auto;white-space:pre-wrap;
+    color:#c6cddb}
+  .console .ns{color:var(--good)}
+  .console .err{color:#ff8a9a}
+  .console .ph{color:var(--accent)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  td.r,th.r{text-align:right}
+  .tag{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+  .tag.LEADS{background:rgba(62,207,142,.14);color:var(--good)}
+  .tag.COMPETITORS{background:rgba(91,140,255,.14);color:var(--accent)}
+  .tag.ALL{background:rgba(139,147,167,.14);color:var(--muted)}
+  .linkbtn{background:none;border:none;color:var(--accent);padding:0 8px;font-size:13px}
+  .empty{color:var(--muted);font-size:13.5px;padding:8px 0}
+  textarea{width:100%;height:220px;background:#0b0d12;border:1px solid var(--line);
+    color:#c6cddb;border-radius:9px;padding:12px;font:12.5px/1.5 var(--mono);resize:vertical}
+  .pill{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:7px}
+  .pill.run{background:var(--warn);animation:pulse 1s infinite}
+  .pill.done{background:var(--good)}
+  @keyframes pulse{50%{opacity:.3}}
+  dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);
+    border-radius:12px;max-width:90vw;padding:0}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .modalhead{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .modalbody{padding:14px 18px;max-height:70vh;overflow:auto}
+  .modalbody table{font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>maps-lead-finder <span>— no-website prospecting</span></h1>
+  </header>
+  <p class="note">⚠ Keep runs modest &amp; headed. Don't scrape the same area repeatedly,
+    don't add CAPTCHA/proxy evasion, don't commit scraped data. See <b>BARRIERS.md</b> before scaling.</p>
+
+  <!-- RUN -->
+  <div class="card">
+    <h2>1 · New run</h2>
+    <label>Categories</label>
+    <div class="chips" id="chips"></div>
+    <div class="row" style="margin-top:16px">
+      <div style="flex:2">
+        <label>Location (scrape area-by-area — Google caps ~120/search)</label>
+        <input type="text" id="loc" placeholder="e.g. Jayanagar, Bengaluru" autocomplete="off">
+      </div>
+      <div style="flex:0 0 120px">
+        <label>Max / search</label>
+        <input type="number" id="max" value="120" min="1" max="120">
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="primary" id="go">▶ Go</button>
+      <button class="danger" id="stop" style="display:none">■ Stop</button>
+      <label class="check"><input type="checkbox" id="headless"> headless (higher throttle risk)</label>
+    </div>
+  </div>
+
+  <!-- LIVE -->
+  <div class="card">
+    <h2><span class="pill" id="pill"></span>2 · Live</h2>
+    <div class="stats" id="stats" style="display:none"></div>
+    <div class="console" id="console">Idle — pick categories and a location, then hit Go.</div>
+  </div>
+
+  <!-- FILES -->
+  <div class="card">
+    <h2>3 · Extracted files <span style="text-transform:none;color:var(--muted);font-weight:400">(in data/leads/, git-ignored)</span></h2>
+    <div id="files"><div class="empty">No files yet.</div></div>
+  </div>
+
+  <!-- SQL -->
+  <div class="card">
+    <h2>4 · Supabase SQL generator</h2>
+    <div class="row">
+      <div style="flex:2"><label>LEADS file</label>
+        <select id="sqlcsv"></select></div>
+      <div><label>source_dataset (provenance tag)</label><input type="text" id="dataset" placeholder="argora/<file>"></div>
+    </div>
+    <p class="note" style="margin:10px 0 0">INSERT-only · skips by place-id <b>and</b> phone · <code>ON CONFLICT</code> backstop → safe to re-run, never duplicates. Run in the Supabase SQL editor.</p>
+    <div class="toolbar">
+      <button class="primary" id="gensql">Generate SQL</button>
+      <label class="check"><input type="checkbox" id="hassite"> include has-site rows</label>
+      <span id="sqlmeta" style="color:var(--muted);font-size:13px"></span>
+    </div>
+    <textarea id="sqlout" style="margin-top:14px;display:none" readonly></textarea>
+    <div class="toolbar" id="sqlactions" style="display:none">
+      <button id="copysql">Copy</button>
+      <button id="dlsql">Download .sql</button>
+    </div>
+  </div>
+</div>
+
+<dialog id="preview"><div class="modalhead"><b id="pvtitle"></b><button onclick="document.getElementById('preview').close()">✕</button></div><div class="modalbody" id="pvbody"></div></dialog>
+
+<script>
+const $=s=>document.querySelector(s), api=(p,o)=>fetch(p,o).then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||r.statusText)));
+let selected=new Set(), es=null, sqlText="", sqlFile="";
+
+// load sectors
+api('/api/sectors').then(list=>{
+  $('#chips').innerHTML='';
+  list.forEach(s=>{
+    const el=document.createElement('div'); el.className='chip';
+    el.innerHTML=`${s.key}<small>≥${s.min_reviews}★</small>`;
+    el.onclick=()=>{el.classList.toggle('on'); selected.has(s.key)?selected.delete(s.key):selected.add(s.key);};
+    $('#chips').appendChild(el);
+  });
+});
+
+function logLine(line){
+  const c=$('#console'); let cls='';
+  if(/NO-SITE/.test(line))cls='ns'; if(/^✗|error/i.test(line))cls='err'; if(/^▶/.test(line))cls='ph';
+  const span=document.createElement('span'); if(cls)span.className=cls; span.textContent=line+'\n';
+  c.appendChild(span); c.scrollTop=c.scrollHeight;
+}
+function renderStats(){
+  const box=$('#stats'); if(!window._sum||!window._sum.length){box.style.display='none';return;}
+  box.style.display='flex';
+  const t=window._sum.reduce((a,s)=>({l:a.l+s.leads,c:a.c+s.competitors,n:a.n+s.scraped}),{l:0,c:0,n:0});
+  box.innerHTML=`<div class="stat"><b>${t.l}</b><span>leads</span></div>
+    <div class="stat"><b>${t.c}</b><span>competitors</span></div>
+    <div class="stat"><b>${t.n}</b><span>scraped</span></div>
+    <div class="stat"><b>${window._sum.length}</b><span>sectors</span></div>`;
+}
+function setRunning(on){
+  $('#go').disabled=on; $('#stop').style.display=on?'inline-block':'none';
+  $('#pill').className='pill '+(on?'run':'done');
+}
+
+$('#go').onclick=async()=>{
+  if(!selected.size){alert('Pick at least one category.');return;}
+  if(!$('#loc').value.trim()){alert('Enter a location.');return;}
+  $('#console').innerHTML=''; window._sum=[]; renderStats(); setRunning(true);
+  try{
+    const {job_id}=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sectors:[...selected],location:$('#loc').value,max:+$('#max').value,headless:$('#headless').checked})});
+    es=new EventSource('/api/stream/'+job_id);
+    es.onmessage=e=>{
+      const m=JSON.parse(e.data);
+      if(m.kind==='log')logLine(m.line);
+      else if(m.kind==='phase')logLine('── '+m.label+' ──');
+      else if(m.kind==='summary'){window._sum.push(m); renderStats();}
+      else if(m.kind==='error')logLine('✗ '+m.message);
+      else if(m.kind==='done'){es.close(); setRunning(false); logLine('● done.'); loadFiles();}
+    };
+    es.onerror=()=>{logLine('✗ stream lost'); es.close(); setRunning(false);};
+  }catch(err){logLine('✗ '+err); setRunning(false);}
+};
+$('#stop').onclick=()=>{api('/api/stop',{method:'POST'}); logLine('· stop requested…');};
+
+async function loadFiles(){
+  const files=await api('/api/files');
+  const box=$('#files'), sel=$('#sqlcsv');
+  if(!files.length){box.innerHTML='<div class="empty">No files yet.</div>';return;}
+  let h='<table><tr><th>File</th><th>Type</th><th class="r">Rows</th><th></th></tr>';
+  files.forEach(f=>{h+=`<tr><td>${f.name}</td><td><span class="tag ${f.kind}">${f.kind}</span></td>
+    <td class="r">${f.rows}</td><td class="r">
+    <button class="linkbtn" onclick="prev('${f.name}')">preview</button>
+    <button class="linkbtn" onclick="location.href='/api/download/${f.name}'">download</button></td></tr>`;});
+  box.innerHTML=h+'</table>';
+  sel.innerHTML=files.filter(f=>f.kind==='LEADS').map(f=>`<option>${f.name}</option>`).join('')
+    ||'<option value="">— no LEADS files —</option>';
+}
+window.prev=async name=>{
+  const d=await api('/api/preview/'+name);
+  $('#pvtitle').textContent=name+'  ·  '+d.total+' rows';
+  if(!d.rows.length){$('#pvbody').innerHTML='<div class="empty">empty</div>';}
+  else{let h='<table><tr>'+d.columns.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+    d.rows.forEach(r=>{h+='<tr>'+d.columns.map(c=>`<td>${(r[c]||'').toString().slice(0,60)}</td>`).join('')+'</tr>';});
+    $('#pvbody').innerHTML=h+'</table>';}
+  $('#preview').showModal();
+};
+
+$('#gensql').onclick=async()=>{
+  const csv=$('#sqlcsv').value; if(!csv){alert('No LEADS file to generate from.');return;}
+  $('#sqlmeta').textContent='generating…';
+  try{
+    const d=await api('/api/sql',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({csv,dataset:$('#dataset').value||null,include_has_site:$('#hassite').checked})});
+    sqlText=d.sql; sqlFile=d.file;
+    $('#sqlout').value=d.sql; $('#sqlout').style.display='block'; $('#sqlactions').style.display='flex';
+    $('#sqlmeta').textContent=`${d.count} rows → data/sql/${d.file}`;
+  }catch(err){$('#sqlmeta').textContent='✗ '+err;}
+};
+$('#copysql').onclick=()=>{navigator.clipboard.writeText(sqlText); $('#copysql').textContent='Copied ✓'; setTimeout(()=>$('#copysql').textContent='Copy',1200);};
+$('#dlsql').onclick=()=>location.href='/api/download/'+sqlFile;
+
+loadFiles();
+</script>
+</body>
+</html>

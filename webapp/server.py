@@ -335,7 +335,7 @@ def gen_sql(req: SqlReq):
     dataset = req.dataset or f"argora/{stem}"
     sql, n = sql_gen.generate(rows, dataset, only_leads=not req.include_has_site)
     out_name = stem + ".sql"
-    with open(os.path.join(SQL, out_name), "w") as f:
+    with open(os.path.join(SQL, out_name), "w", encoding="utf-8") as f:
         f.write(sql)
     return JSONResponse({"sql": sql, "count": n, "file": out_name})
 

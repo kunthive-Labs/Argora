@@ -43,7 +43,7 @@ import os
 import re
 import urllib.parse
 
-from leadfinder import analyze
+from leadfinder import analyze, ranking
 
 TABLE = "leads"
 # order is fixed and matches both the INSERT column list and the VALUES alias
@@ -102,6 +102,8 @@ def classify_website(website):
     """Return (website_status_enum, website_url) for the leads table."""
     w = (website or "").strip()
     if not w or w.lower() in ("none", "n/a", "na", "-", "null"):
+        return "none", ""
+    if ranking.is_google_site(w):       # Google Site = no real website at all
         return "none", ""
     if analyze.has_real_website(w):
         return "real", w

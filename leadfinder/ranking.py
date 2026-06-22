@@ -17,12 +17,26 @@ import re
 SOCIAL_BUILDER = (
     "facebook.com", "instagram.com", "youtube.com", "youtu.be",
     "wixsite.com", "wix.com", "site123", "codedesign.app", "starzpages",
-    "myshopmatic", "sites.google.com", "linktr.ee",
+    "myshopmatic", "linktr.ee",
     # extras consistent with the scraper's own list
     "fb.com", "instagr.am", "twitter.com", "x.com", "linkedin.com",
     "wa.me", "whatsapp.com", "justdial.com", "indiamart.com", "sulekha.com",
-    "g.page", "business.site",
+    "g.page",
 )
+
+# Google Sites / Google Business Profile auto-sites count as NO website at all
+# (not even "social"): a business on one of these has no real web presence, so
+# it is the strongest kind of lead — treated identically to an empty website.
+GOOGLE_SITES = (
+    "sites.google.com",      # classic & new Google Sites (/site/, /view/)
+    "business.site",         # Google Business Profile free auto-generated site
+)
+
+
+def is_google_site(website):
+    """True if the URL is a Google Sites / Google Business Profile auto-site."""
+    w = (website or "").strip().lower()
+    return bool(w) and any(host in w for host in GOOGLE_SITES)
 
 PREMIUM_PINS = {
     "560001", "560008", "560034", "560038", "560041",
@@ -34,6 +48,8 @@ def web_status(website):
     """'none' | 'social' | 'real'. Real = a genuine business site (not a lead)."""
     w = (website or "").strip().lower()
     if not w or w in ("none", "n/a", "na", "-", "null"):
+        return "none"
+    if is_google_site(w):                    # a Google Site = no real website
         return "none"
     if any(host in w for host in SOCIAL_BUILDER):
         return "social"

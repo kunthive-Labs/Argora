@@ -260,6 +260,48 @@
   .kv .k{font:600 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);padding-top:2px}
   .kv .v{font-family:var(--serif)} .kv a{color:var(--blue)}
 
+  /* ---------- 6 · outreach studio ---------- */
+  .ostage{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px}
+  .ostage .omain{flex:3;min-width:300px}
+  .ostage .oside{flex:1;min-width:215px}
+  .ocard{background:#fbf7ea;border:1px solid var(--paper-edge);border-left:3px solid var(--gilt-dk);
+    border-radius:5px;padding:13px 15px;margin-bottom:12px;box-shadow:0 2px 6px -3px rgba(0,0,0,.2)}
+  .ocard.touched{border-left-color:var(--ink-faint);background:#f6f0df}
+  .oc-head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .oc-name{font:600 16px var(--serif);color:var(--ink)}
+  .oc-meta{font:11.5px var(--mono);color:var(--ink-soft);margin-left:auto}
+  .tpill{font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 8px;border-radius:11px;border:1px solid}
+  .tpill.hot{color:var(--good);border-color:var(--good);background:rgba(47,125,82,.1)}
+  .tpill.warm{color:var(--blue);border-color:var(--blue);background:rgba(58,90,140,.1)}
+  .tpill.cool{color:var(--warn);border-color:var(--warn);background:rgba(184,118,31,.1)}
+  .tpill.cold{color:var(--ink-faint);border-color:var(--ink-faint)}
+  .oc-comp{font:italic 13px var(--serif);color:var(--ink-soft);margin:7px 0 0}
+  .oc-comp b{font-style:normal;color:var(--blue)}
+  .oc-touched{font:600 11px var(--sans);font-style:normal;color:var(--warn)}
+  .oc-tags{display:flex;gap:5px;flex-wrap:wrap;margin:7px 0 0}
+  .otag{font:600 10px var(--mono);color:var(--gilt-dk);background:rgba(194,161,77,.12);
+    border:1px solid var(--gilt);border-radius:3px;padding:1px 6px}
+  .oc-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .chan{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:6px;
+    border:1px solid var(--paper-edge);background:#efe6cd;color:var(--ink);cursor:pointer;
+    font:600 12.5px var(--sans);text-decoration:none;box-shadow:0 2px 0 var(--ink-faint)}
+  .chan:hover{background:#f6efdb}
+  .chan:active{transform:translateY(2px);box-shadow:none}
+  .chan.wa{color:#0f7a4a;border-color:#7bc4a0}
+  .chan.disabled{opacity:.45;pointer-events:none;box-shadow:none}
+  .em-in{min-width:150px;flex:1}
+  .oc-script{display:none;margin-top:9px;white-space:pre-wrap;font:12px/1.5 var(--mono);
+    background:#fff;border:1px dashed var(--paper-edge);border-radius:4px;padding:10px;color:var(--ink)}
+  .oc-log{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px;
+    padding-top:10px;border-top:1px dashed var(--ink-faint)}
+  .oc-log select,.oc-log input{width:auto;padding:5px 8px;font-size:12.5px}
+  .oc-log .onote{flex:1;min-width:110px}
+  .fu-btn{padding:4px 9px;font-size:12px;box-shadow:0 2px 0 var(--ink-faint)}
+  .fu-btn.on{background:var(--gilt);border-color:var(--gilt-dk)}
+  .oside .filerow{font-size:12.5px}
+  .oside .stop a{color:var(--blue)}
+
   @media (max-width:640px){
     .wrap{padding:18px 12px 70px}
     .sheet{padding:18px 16px 20px 26px}
@@ -401,6 +443,84 @@
       <button id="dlsql">Download .sql</button>
     </div>
   </section>
+
+  <!-- 5 · PAGE EXTRACTOR -->
+  <section class="sheet">
+    <div class="head"><span class="fol">fol. 5</span><h2>Page extractor</h2>
+      <span class="desc">transcribe one exact page — its text, or a full capture if it can't be copied</span>
+      <span class="right"><span class="nib" id="expill"></span></span></div>
+
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:3">
+        <label>Exact URL <span class="lc">— the precise page to transcribe</span></label>
+        <input type="text" id="exurl" placeholder="https://example.com/about" autocomplete="off">
+      </div>
+      <div style="flex:0 0 170px">
+        <label>Manner</label>
+        <select id="exmode">
+          <option value="auto">auto — text, else capture</option>
+          <option value="text">text only</option>
+          <option value="screenshot">full capture only</option>
+          <option value="both">text + capture</option>
+        </select>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="primary" id="exgo">✶ Transcribe</button>
+      <button class="danger" id="exstop" style="display:none">■ Halt</button>
+      <label class="check"><input type="checkbox" id="exheadless" checked> run headless</label>
+      <span id="exhint" class="runhint"></span>
+    </div>
+    <p class="notice" style="margin:14px 0 0;background:rgba(58,90,140,.1);border-color:rgba(58,90,140,.4);border-left-color:var(--blue);color:var(--ink)">
+      Selectable text is saved to <code>text.txt</code>. If the page has none
+      (image-only, scanned, canvas), a folder is created under its name and a
+      <b style="color:var(--blue)">complete full-page screenshot</b> is saved there instead.</p>
+
+    <div class="ledgerlog" id="exconsole" style="height:180px;margin-top:14px">Awaiting a URL to transcribe.</div>
+
+    <div class="head" style="margin-top:24px;border-bottom-width:1px">
+      <h2 style="font-size:16px">Transcriptions on file</h2>
+      <span class="desc">data/extracts/ — kept local, never committed</span>
+      <span class="right"><button class="sm" id="exrefresh">↻ Refresh</button></span></div>
+    <div class="filelist" id="exfiles"><div class="empty">No transcriptions yet.</div></div>
+  </section>
+
+  <!-- 6 · OUTREACH STUDIO -->
+  <section class="sheet">
+    <div class="head"><span class="fol">fol. 6</span><h2>Outreach studio</h2>
+      <span class="desc">turn each lead into a ready-to-send pitch — then log the touch</span>
+      <span class="right"><span class="seal" id="odbpill"><span class="wax"></span><span id="odbtext">local only</span></span></span></div>
+
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:2"><label>Leads book <span class="lc">— a -LEADS book to work</span></label><select id="oCsv"></select></div>
+      <div style="flex:0 0 auto;display:flex;gap:10px;align-items:center;padding-bottom:2px">
+        <button class="primary" id="oLoad">Open work</button>
+        <label class="check"><input type="checkbox" id="oUntouched"> untouched only</label>
+      </div>
+    </div>
+
+    <details class="adv" id="oSenderWrap">
+      <summary>Your details — signs every message (kept in this browser)</summary>
+      <div class="row">
+        <div><label>Your name</label><input type="text" id="oSName" placeholder="e.g. Bharath"></div>
+        <div><label>Business</label><input type="text" id="oSBiz" placeholder="Kunthive"></div>
+        <div><label>Your phone</label><input type="text" id="oSPhone" placeholder="+91 …"></div>
+      </div>
+    </details>
+
+    <div class="ostage">
+      <div class="omain">
+        <div id="oList"><div class="empty">Choose a leads book and press <b>Open work</b>.</div></div>
+      </div>
+      <div class="oside">
+        <div class="head" style="border-bottom-width:1px"><h2 style="font-size:15px">Follow-ups due</h2></div>
+        <div class="filelist" id="oDue"><div class="empty">none due</div></div>
+        <div class="head" style="margin-top:22px;border-bottom-width:1px"><h2 style="font-size:15px">Walk-in route</h2>
+          <span class="right"><button class="sm ghost" id="oPrint" title="print route">⎙</button></span></div>
+        <div class="filelist" id="oRoute"><div class="empty">— open a book —</div></div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <dialog id="preview">
@@ -506,8 +626,12 @@ async function loadFiles(){
   const resSel=$('#resfile'), prevSel=resSel.value;
   resSel.innerHTML=files.map(f=>`<option>${esc(f.name)}</option>`).join('')||'<option value="">— none —</option>';
   if(files.some(f=>f.name===prevSel)) resSel.value=prevSel;
-  $('#sqlcsv').innerHTML=files.filter(f=>f.kind==='LEADS').map(f=>`<option>${esc(f.name)}</option>`).join('')
+  const leadOpts=files.filter(f=>f.kind==='LEADS').map(f=>`<option>${esc(f.name)}</option>`).join('')
     ||'<option value="">— no leads books —</option>';
+  $('#sqlcsv').innerHTML=leadOpts;
+  const oSel=$('#oCsv'), oPrev=oSel.value;
+  oSel.innerHTML=leadOpts;
+  if(files.some(f=>f.name===oPrev)) oSel.value=oPrev;
   if(files.length && resSel.value) loadResults(resSel.value);
 }
 async function loadResults(name){
@@ -602,12 +726,14 @@ $('#dlsql').onclick=()=>location.href='/api/download/'+encodeURIComponent(sqlFil
 
 async function refreshDbStatus(){
   const pill=$('#dbpill'), txt=$('#dbtext'), btn=$('#pushdb');
+  const opill=$('#odbpill'), otxt=$('#odbtext');
+  const setOut=ok=>{window._oDbOk=ok; if(opill){opill.className='seal '+(ok?'ok':'off');otxt.textContent=ok?'write-back ready':'local only';}};
   try{
     const s=await api('/api/db-status');
-    if(s.reachable){pill.className='seal ok';txt.textContent=`books open · ${s.leads_total} leads`;btn.disabled=false;}
-    else if(s.configured){pill.className='seal off';txt.textContent='books unreachable';btn.disabled=true;btn.title=s.detail||'';}
-    else{pill.className='seal off';txt.textContent='books not configured';btn.disabled=true;btn.title=s.detail||'';}
-  }catch(e){pill.className='seal off';txt.textContent='status error';btn.disabled=true;}
+    if(s.reachable){pill.className='seal ok';txt.textContent=`books open · ${s.leads_total} leads`;btn.disabled=false;setOut(true);}
+    else if(s.configured){pill.className='seal off';txt.textContent='books unreachable';btn.disabled=true;btn.title=s.detail||'';setOut(false);}
+    else{pill.className='seal off';txt.textContent='books not configured';btn.disabled=true;btn.title=s.detail||'';setOut(false);}
+  }catch(e){pill.className='seal off';txt.textContent='status error';btn.disabled=true;setOut(false);}
 }
 $('#pushdb').onclick=async()=>{
   const csv=$('#sqlcsv').value; if(!csv){$('#sqlmeta').className='msg err';$('#sqlmeta').textContent='No leads book.';return;}
@@ -622,9 +748,216 @@ $('#pushdb').onclick=async()=>{
   }catch(err){$('#sqlmeta').className='msg err'; $('#sqlmeta').textContent='✗ '+err;}
 };
 
+/* ---------- 5 · page extractor ---------- */
+let exEs=null;
+function exLog(line){
+  const c=$('#exconsole'); let cls='post';
+  if(/screenshot|capture/i.test(line))cls+=' ns'; if(/^✗|error/i.test(line))cls+=' err'; if(/^▶/.test(line))cls+=' ph';
+  const span=document.createElement('span'); span.className=cls; span.textContent=line+'\n';
+  c.appendChild(span); c.scrollTop=c.scrollHeight;
+}
+function exSetRunning(on){
+  $('#exgo').disabled=on; $('#exstop').style.display=on?'inline-block':'none';
+  $('#expill').className='nib '+(on?'run':'done');
+}
+$('#exgo').onclick=async()=>{
+  const url=$('#exurl').value.trim();
+  if(!url){$('#exhint').className='runhint msg err';$('#exhint').textContent='Paste an exact URL.';return;}
+  $('#exhint').textContent=''; $('#exconsole').innerHTML=''; exSetRunning(true);
+  try{
+    const {job_id}=await api('/api/extract',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url,mode:$('#exmode').value,headless:$('#exheadless').checked})});
+    exEs=new EventSource('/api/stream/'+job_id);
+    exEs.onmessage=e=>{
+      const m=JSON.parse(e.data);
+      if(m.kind==='log')exLog(m.line);
+      else if(m.kind==='extract'){/* result captured; folder list refreshes on done */}
+      else if(m.kind==='error')exLog('✗ '+m.message);
+      else if(m.kind==='done'){exEs.close(); exSetRunning(false); exLog('● transcription posted.'); loadExtracts();}
+    };
+    exEs.onerror=()=>{exLog('✗ stream lost'); exEs.close(); exSetRunning(false);};
+  }catch(err){exLog('✗ '+err); exSetRunning(false);}
+};
+$('#exstop').onclick=()=>{api('/api/stop',{method:'POST'}); exLog('· halt requested…');};
+$('#exrefresh').onclick=loadExtracts;
+
+async function loadExtracts(){
+  let list=[]; try{list=await api('/api/extracts');}catch(e){}
+  const box=$('#exfiles');
+  if(!list.length){box.innerHTML='<div class="empty">No transcriptions yet — transcribe a page above.</div>';return;}
+  box.innerHTML=list.map(x=>{
+    const kind=x.has_text?'text':(x.screenshots.length?'capture':'empty');
+    const badge=x.has_text?'LEADS':(x.screenshots.length?'COMPETITORS':'ALL');
+    const bits=[];
+    if(x.has_text)bits.push(`<button class="linkbtn" onclick="exViewText('${esc(x.folder)}')">view text</button>`);
+    x.screenshots.forEach(s=>bits.push(`<button class="linkbtn" onclick="exViewShot('${esc(x.folder)}','${esc(s)}')">${esc(s)}</button>`));
+    bits.push(`<button class="linkbtn" onclick="exDownload('${esc(x.folder)}','${esc(x.has_text?'text.txt':x.screenshots[0]||'')}')">download</button>`);
+    return `<div class="filerow">
+      <span class="reckind ${badge}">${kind}</span>
+      <span class="fn" title="${esc(x.folder)}">${esc(x.folder)}</span>
+      <span class="cnt">${x.files.length} file${x.files.length===1?'':'s'}</span>
+      ${bits.join('&nbsp;·&nbsp;')}
+    </div>`;
+  }).join('');
+}
+window.exViewText=async folder=>{
+  const d=await api('/api/extract-text/'+encodeURIComponent(folder));
+  $('#pvtitle').textContent=folder+'  ·  text';
+  $('#pvbody').innerHTML='<pre style="white-space:pre-wrap;font:13px/1.55 var(--mono);margin:0">'+esc(d.text)+'</pre>';
+  $('#preview').showModal();
+};
+window.exViewShot=(folder,name)=>{
+  $('#pvtitle').textContent=folder+'  ·  '+name;
+  const src='/api/extract-asset/'+encodeURIComponent(folder)+'/'+encodeURIComponent(name);
+  $('#pvbody').innerHTML=`<img src="${src}" style="max-width:100%;display:block;border:1px solid var(--paper-edge)">`;
+  $('#preview').showModal();
+};
+window.exDownload=(folder,name)=>{
+  if(!name)return;
+  location.href='/api/extract-asset/'+encodeURIComponent(folder)+'/'+encodeURIComponent(name);
+};
+
+/* ---------- 6 · outreach studio ---------- */
+function senderObj(){
+  const s={name:$('#oSName').value.trim(),business:$('#oSBiz').value.trim(),phone:$('#oSPhone').value.trim()};
+  s.signoff=s.business||'Kunthive';
+  try{localStorage.setItem('argora_sender',JSON.stringify(s));}catch(e){}
+  return s;
+}
+function loadSender(){
+  try{const s=JSON.parse(localStorage.getItem('argora_sender')||'{}');
+    $('#oSName').value=s.name||''; $('#oSBiz').value=s.business||''; $('#oSPhone').value=s.phone||'';}catch(e){}
+}
+['oSName','oSBiz','oSPhone'].forEach(id=>$('#'+id).addEventListener('change',senderObj));
+
+function oAgo(iso){
+  if(!iso)return ''; const d=(Date.now()-new Date(iso).getTime())/86400000;
+  return d<1?'today':d<2?'yesterday':Math.floor(d)+'d ago';
+}
+function oTags(t){
+  const a=(t||'').split(';').filter(Boolean);
+  return a.length?`<div class="oc-tags">${a.map(x=>`<span class="otag">${esc(x)}</span>`).join('')}</div>`:'';
+}
+const OUTC=[['sent','sent'],['no_answer','no answer'],['callback','callback'],
+  ['interested','interested'],['not_interested','not interested'],['converted','converted ✓']];
+
+function renderOutreach(){
+  const box=$('#oList'), ls=window._oLeads||[];
+  if(!ls.length){box.innerHTML='<div class="empty">No leads in this book (or all filtered out).</div>';return;}
+  box.innerHTML=ls.map((l,i)=>{
+    const m=l.messages, wa=m.whatsapp, comp=m.competitor, t=l.last_touch;
+    const compLine=comp
+      ? `vs <b>${esc(comp.name)}</b>${comp.reviews?` — ${comp.reviews}★ &amp; a website`:' — has a website'}`
+      : 'no nearby competitor with a site to cite';
+    const waBtn=wa.url
+      ? `<a class="chan wa" href="${esc(wa.url)}" target="_blank" rel="noopener" onclick="oArm(${i},'whatsapp')">✆ WhatsApp</a>`
+      : `<span class="chan wa disabled" title="no usable phone number">✆ WhatsApp</span>`;
+    const callBtn=m.call.tel
+      ? `<a class="chan" href="${esc(m.call.tel)}" onclick="oArm(${i},'call')">☎ Call</a>`
+      : `<span class="chan disabled">☎ Call</span>`;
+    const outs=OUTC.map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('');
+    return `<div class="ocard ${t?'touched':''}" id="ocard${i}">
+      <div class="oc-head">
+        <span class="oc-name">${esc(l.name)||'(no name)'}</span>
+        <span class="tpill ${esc(l.tier||'cold')}">${esc(l.tier||'—')}</span>
+        <span class="oc-meta">score ${esc(l.score)} · ${esc(l.reviews)} rev · ${esc(l.rating)}★ · ${esc(l.category)}</span>
+      </div>
+      <div class="oc-comp">${compLine}${t?` · <span class="oc-touched">touched ${oAgo(t.sent_at)} (${esc(t.channel)})</span>`:''}</div>
+      ${oTags(l.rank_tags)}
+      <div class="oc-actions">
+        ${waBtn}${callBtn}
+        <button class="chan" onclick="oScript(${i})">📜 Script</button>
+        <input class="em-in" id="oem${i}" type="text" placeholder="paste email to send…">
+        <button class="chan" onclick="oEmail(${i})">✉ Email</button>
+        <button class="chan" onclick="oCopy(${i})">⎘ Copy</button>
+      </div>
+      <div class="oc-script" id="oscript${i}">${esc(m.call.script)}</div>
+      <div class="oc-log">
+        <select id="och${i}" title="channel used">
+          <option value="whatsapp">WhatsApp</option><option value="call">Call</option>
+          <option value="email">Email</option><option value="walkin">Walk-in</option></select>
+        <select id="oout${i}" title="outcome">${outs}</select>
+        <input class="onote" id="onote${i}" type="text" placeholder="note…">
+        <button class="fu-btn" onclick="oFu(${i},2,this)">+2d</button>
+        <button class="fu-btn" onclick="oFu(${i},7,this)">+1w</button>
+        <label class="check" title="${window._oDbOk?'update lead status in KunthiveOS':'DB not reachable'}">
+          <input type="checkbox" id="opush${i}" ${window._oDbOk?'':'disabled'}> push</label>
+        <button class="sm gilt" onclick="oLog(${i})">Log touch</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.oArm=(i,ch)=>{const s=$('#och'+i); if(s)s.value=ch;};
+window.oScript=i=>{const e=$('#oscript'+i); e.style.display=e.style.display==='block'?'none':'block';};
+window.oCopy=i=>{navigator.clipboard.writeText(window._oLeads[i].messages.whatsapp.text);};
+window.oEmail=i=>{
+  const m=window._oLeads[i].messages.email, to=$('#oem'+i).value.trim();
+  oArm(i,'email');
+  location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(m.subject)+'&body='+encodeURIComponent(m.body);
+};
+window.oFu=(i,days,btn)=>{
+  const l=window._oLeads[i];
+  if(l._fuDays===days){l._fuDays=null;l._fu=null;btn.classList.remove('on');return;}
+  l._fuDays=days; l._fu=new Date(Date.now()+days*86400000).toISOString().slice(0,19);
+  btn.parentElement.querySelectorAll('.fu-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+};
+window.oLog=async i=>{
+  const l=window._oLeads[i];
+  const body={lead_key:l.lead_key,name:l.name,phone:l.phone,area:l.area,category:l.category,
+    dataset:l.dataset,channel:$('#och'+i).value,outcome:$('#oout'+i).value,
+    notes:$('#onote'+i).value,follow_up_at:l._fu||null,push_to_db:$('#opush'+i)?.checked||false};
+  try{
+    const d=await api('/api/outreach/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    l.last_touch=d.touch; l._fuDays=null; l._fu=null;
+    if(body.push_to_db && !d.pushed_to_db){
+      const why=(d.writeback&&d.writeback.reason)||'not written';
+      alert('Logged locally ✓  — KunthiveOS not updated: '+why);
+    }
+    if($('#oUntouched').checked){loadOutreach();}else{renderOutreach();}
+    loadFollowups();
+  }catch(err){alert('Log failed: '+err);}
+};
+
+async function loadOutreach(){
+  const csv=$('#oCsv').value;
+  if(!csv){$('#oList').innerHTML='<div class="empty">No leads book selected.</div>';return;}
+  $('#oList').innerHTML='<div class="empty">opening the book…</div>';
+  try{
+    const d=await api('/api/outreach/queue',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({csv,only_untouched:$('#oUntouched').checked,sender:senderObj(),limit:300})});
+    window._oLeads=d.leads; renderOutreach(); loadRoute();
+  }catch(err){$('#oList').innerHTML='<div class="empty">✗ '+esc(err)+'</div>';}
+}
+async function loadFollowups(){
+  let d; try{d=await api('/api/outreach/followups');}catch(e){return;}
+  const box=$('#oDue');
+  box.innerHTML=d.due.length?d.due.map(t=>`<div class="filerow">
+    <span class="fn" title="${esc(t.notes||'')}">${esc(t.name)}</span>
+    <span class="cnt">${esc((t.follow_up_at||'').slice(0,10))} · ${esc(t.channel)}</span></div>`).join('')
+    :'<div class="empty">none due</div>';
+}
+async function loadRoute(){
+  const csv=$('#oCsv').value;
+  if(!csv){$('#oRoute').innerHTML='<div class="empty">— open a book —</div>';return;}
+  let d; try{d=await api('/api/outreach/route?csv='+encodeURIComponent(csv));}catch(e){return;}
+  const box=$('#oRoute');
+  box.innerHTML=d.groups.length?d.groups.map(g=>`<div class="filerow" style="flex-direction:column;align-items:stretch;gap:3px">
+    <b style="font:600 12px var(--mono);color:var(--blue)">PIN ${esc(g.postal)} · ${g.stops.length} stop${g.stops.length===1?'':'s'}</b>
+    ${g.stops.map(s=>`<span class="stop" style="font-size:12px">${esc(s.name)} — <a href="${esc(s.maps_url)}" target="_blank" rel="noopener">map</a> ${esc(s.phone)}</span>`).join('')}
+  </div>`).join('')
+    :'<div class="empty">no stops</div>';
+}
+$('#oLoad').onclick=loadOutreach;
+$('#oUntouched').onchange=loadOutreach;
+$('#oCsv').onchange=loadRoute;
+$('#oPrint').onclick=()=>window.print();
+
 /* ---------- init ---------- */
+loadSender();
 loadFiles();
 refreshDbStatus();
+loadExtracts();
+loadFollowups();
 </script>
 </body>
 </html>

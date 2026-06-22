@@ -27,14 +27,17 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
                                StreamingResponse)
 from pydantic import BaseModel
 
-from leadfinder import analyze, db, scraper, sectors, sql_gen
+from leadfinder import (analyze, db, extractor, outreach, outreach_log,
+                        scraper, sectors, sql_gen)
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(BASE, "data", "raw")
 LEADS = os.path.join(BASE, "data", "leads")
 SQL = os.path.join(BASE, "data", "sql")
+EXTRACTS = os.path.join(BASE, "data", "extracts")
+OUTREACH = os.path.join(BASE, "data", "outreach")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-for d in (RAW, LEADS, SQL):
+for d in (RAW, LEADS, SQL, EXTRACTS, OUTREACH):
     os.makedirs(d, exist_ok=True)
 
 app = FastAPI(title="maps-lead-finder")
@@ -141,6 +144,26 @@ def run_job(job, sectors_sel, custom, location, max_results, headless,
             _current["job"] = None
 
 
+def run_extract_job(job, url, mode, headless):
+    """Extract text (or full-page screenshots) from one exact URL."""
+    try:
+        res = extractor.extract(
+            url, EXTRACTS, mode=mode, headless=headless,
+            log=job.log, should_stop=lambda: job.stop)
+        job.emit("extract", **res)
+        kind = ("screenshot" if res["screenshots"] and not res["text_file"]
+                else "text" if res["text_file"] else "empty")
+        job.log(f"  ● done — {kind} · folder: {res['folder'] or '(none)'}")
+    except Exception as e:
+        job.log(f"✗ error: {e}")
+        job.emit("error", message=str(e))
+    finally:
+        job.emit("done")
+        job.done = True
+        with _lock:
+            _current["job"] = None
+
+
 # ----- models ----------------------------------------------------------------
 class RunReq(BaseModel):
     sectors: list[str] = []
@@ -161,6 +184,33 @@ class PushReq(BaseModel):
     csv: str
     dataset: str | None = None
     include_has_site: bool = False
+
+
+class ExtractReq(BaseModel):
+    url: str
+    mode: str = "auto"          # auto | text | screenshot | both
+    headless: bool = True
+
+
+class QueueReq(BaseModel):
+    csv: str                            # a *-LEADS.csv from data/leads/
+    limit: int = 200
+    only_untouched: bool = False
+    sender: dict | None = None          # {name, business, phone, signoff}
+
+
+class TouchReq(BaseModel):
+    lead_key: str
+    name: str = ""
+    phone: str = ""
+    area: str = ""
+    category: str = ""
+    dataset: str = ""
+    channel: str                        # whatsapp | call | email | walkin
+    outcome: str = "sent"
+    notes: str = ""
+    follow_up_at: str | None = None     # ISO datetime, or null
+    push_to_db: bool = False
 
 
 # ----- routes ----------------------------------------------------------------
@@ -227,6 +277,14 @@ def _csv_rows(path):
     import csv
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
+
+
+def _competitors_for(leads_csv_name):
+    """The COMPETITORS csv paired with a LEADS csv (same run). [] if missing."""
+    comp = os.path.basename(leads_csv_name).replace(
+        "-LEADS.csv", "-COMPETITORS.csv")
+    path = os.path.join(LEADS, comp)
+    return _csv_rows(path) if os.path.exists(path) else []
 
 
 @app.get("/api/files")
@@ -304,3 +362,161 @@ def push_db(req: PushReq):
     except Exception as e:  # connection / SQL error — surface cleanly to the UI
         raise HTTPException(502, f"Push failed: {e}")
     return JSONResponse(result)
+
+
+# ----- page extractor --------------------------------------------------------
+@app.post("/api/extract")
+def start_extract(req: ExtractReq):
+    """Start a one-URL extraction job. Shares the single-browser job slot with
+    scraping, and streams progress over the same /api/stream/{id} channel."""
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(400, "A URL is required.")
+    mode = req.mode if req.mode in ("auto", "text", "screenshot", "both") else "auto"
+    with _lock:
+        if _current["job"] and not _current["job"].done:
+            raise HTTPException(409, "A job is already running.")
+        job = Job(str(int(time.time() * 1000)))
+        _current["job"] = job
+    t = threading.Thread(target=run_extract_job,
+                         args=(job, url, mode, req.headless), daemon=True)
+    t.start()
+    return {"job_id": job.id}
+
+
+def _safe_under(root, *parts):
+    """Resolve parts under root, refusing anything that escapes it."""
+    path = os.path.realpath(os.path.join(root, *parts))
+    if not path.startswith(os.path.realpath(root) + os.sep):
+        raise HTTPException(400, "Bad path")
+    return path
+
+
+@app.get("/api/extracts")
+def list_extracts():
+    """List extraction folders with their files (text + screenshots)."""
+    out = []
+    if not os.path.isdir(EXTRACTS):
+        return out
+    for folder in sorted(os.listdir(EXTRACTS)):
+        fpath = os.path.join(EXTRACTS, folder)
+        if not os.path.isdir(fpath):
+            continue
+        files = sorted(f for f in os.listdir(fpath)
+                       if os.path.isfile(os.path.join(fpath, f)))
+        shots = [f for f in files if f.lower().endswith(".png")]
+        has_text = "text.txt" in files
+        out.append({"folder": folder, "files": files,
+                    "screenshots": shots, "has_text": has_text})
+    return out
+
+
+@app.get("/api/extract-text/{folder}")
+def extract_text(folder: str):
+    path = _safe_under(EXTRACTS, os.path.basename(folder), "text.txt")
+    if not os.path.exists(path):
+        raise HTTPException(404, "No text for this page.")
+    with open(path, encoding="utf-8") as f:
+        return {"folder": folder, "text": f.read()}
+
+
+@app.get("/api/extract-asset/{folder}/{name}")
+def extract_asset(folder: str, name: str):
+    """Serve a screenshot or text file from an extraction folder (view/download)."""
+    path = _safe_under(EXTRACTS, os.path.basename(folder), os.path.basename(name))
+    if not os.path.exists(path):
+        raise HTTPException(404, "Not found")
+    return FileResponse(path, filename=os.path.basename(name))
+
+
+# ----- outreach studio -------------------------------------------------------
+@app.post("/api/outreach/queue")
+def outreach_queue(req: QueueReq):
+    """Build a ranked worklist: each LEAD + its best-matched COMPETITOR turned
+    into ready-to-send copy for every channel, annotated with the last touch."""
+    path = os.path.join(LEADS, os.path.basename(req.csv))
+    if not os.path.exists(path):
+        raise HTTPException(404, "LEADS csv not found")
+    leads = _csv_rows(path)
+    comps = _competitors_for(req.csv)
+    touched = outreach_log.touched_keys()
+    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    sector = stem.split("-")[0]
+
+    out = []
+    for r in leads:
+        comp = outreach.pick_competitor(r, comps)
+        msgs = outreach.build_messages(r, comp, sector=sector, sender=req.sender)
+        key = msgs["lead_key"]
+        ts = touched.get(key) or []
+        last = max(ts, key=lambda t: t.get("sent_at", "")) if ts else None
+        if req.only_untouched and last:
+            continue
+        out.append({
+            "lead_key": key,
+            "name": r.get("name", ""), "phone": r.get("phone", ""),
+            "category": r.get("category", ""), "area": r.get("area", "") or "",
+            "address": r.get("address", ""),
+            "rating": r.get("rating", ""), "reviews": r.get("reviews", ""),
+            "score": r.get("score", ""), "tier": r.get("tier", ""),
+            "rank_tags": r.get("rank_tags", ""),
+            "maps_url": r.get("maps_url", ""),
+            "messages": msgs, "last_touch": last,
+            "dataset": f"argora/{stem}",
+        })
+        if len(out) >= max(1, req.limit):
+            break
+    return {"stem": stem, "sector": sector, "count": len(out),
+            "competitors": len(comps), "leads": out}
+
+
+@app.get("/api/outreach/log")
+def outreach_log_list(limit: int = 200):
+    touches = outreach_log.load()["touches"]
+    recent = sorted(touches, key=lambda t: t.get("sent_at", ""),
+                    reverse=True)[:max(1, limit)]
+    return {"touches": recent, "total": len(touches)}
+
+
+@app.post("/api/outreach/log")
+def outreach_log_add(req: TouchReq):
+    """Record one outreach touch locally; optionally also flip the lead's
+    status/notes in KunthiveOS. The local record is saved even if the optional
+    write-back fails — we never lose the activity."""
+    pushed, writeback = False, None
+    if req.push_to_db:
+        try:
+            writeback = db.log_outreach(
+                req.lead_key, outcome=req.outcome,
+                channel=req.channel, note=req.notes)
+            pushed = bool(writeback.get("written"))
+        except Exception as e:                  # never 500 the local write
+            writeback = {"written": False, "reason": str(e)}
+
+    payload = req.model_dump(exclude={"push_to_db"})
+    payload["pushed_to_db"] = pushed
+    touch = outreach_log.record(payload)
+    return {"touch": touch, "pushed_to_db": pushed, "writeback": writeback}
+
+
+@app.get("/api/outreach/followups")
+def outreach_followups():
+    return {"due": outreach_log.follow_ups_due()}
+
+
+@app.get("/api/outreach/route")
+def outreach_route(csv: str):
+    """Walk-in route sheet: leads grouped by postal code (then address order)."""
+    path = os.path.join(LEADS, os.path.basename(csv))
+    if not os.path.exists(path):
+        raise HTTPException(404, "LEADS csv not found")
+    groups = {}
+    for r in _csv_rows(path):
+        pin = sql_gen.extract_postal(r.get("address", "")) or "—"
+        groups.setdefault(pin, []).append({
+            "name": r.get("name", ""), "phone": r.get("phone", ""),
+            "address": r.get("address", ""), "maps_url": r.get("maps_url", ""),
+            "reviews": r.get("reviews", ""), "tier": r.get("tier", ""),
+        })
+    out = [{"postal": k, "stops": v} for k, v in sorted(groups.items())]
+    return {"groups": out, "total": sum(len(g["stops"]) for g in out)}

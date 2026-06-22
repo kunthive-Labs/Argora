@@ -19,6 +19,7 @@ on the KunthiveOS side, so creds never travel through this repo.
 """
 import json
 import os
+import urllib.parse
 
 from leadfinder import sql_gen
 
@@ -58,8 +59,10 @@ def _conn_json_candidates():
 def _dsn_from_conn_json(path):
     with open(path) as f:
         c = json.load(f)
-    user = c["user"]
-    pw = c["password"]
+    # URL-encode user + password: Supabase passwords routinely contain @ / : ? #
+    # which otherwise corrupt the DSN (the userinfo bleeds into the host/query).
+    user = urllib.parse.quote(str(c["user"]), safe="")
+    pw = urllib.parse.quote(str(c["password"]), safe="")
     host = c["host"]
     port = c.get("port", 5432)
     db = c.get("database", "postgres")
@@ -130,6 +133,71 @@ def push_csv(csv_path, dataset, only_leads=True):
         conn.commit()
     return {"inserted": max(inserted, 0), "attempted": attempted,
             "origin": _redact(origin)}
+
+
+# outcome (from the outreach log) -> KunthiveOS lead_status enum value
+_OUTCOME_STATUS = {
+    "sent": "contacted", "no_answer": "contacted", "callback": "contacted",
+    "interested": "interested", "converted": "converted",
+    "not_interested": "disqualified",
+}
+# outreach channel -> activities.channel enum value
+_ACTIVITY_CHANNEL = {
+    "whatsapp": "whatsapp", "call": "call", "email": "email", "walkin": "meeting",
+}
+
+
+def log_outreach(lead_key, *, outcome="sent", channel="whatsapp", note=""):
+    """OPTIONAL, non-breaking write-back: move an existing lead's status and
+    append a note in the KunthiveOS `leads` table, and record an `activities`
+    row. Matched by source_place_id = lead_key (the same key sql_gen synthesises).
+
+    Never inserts a lead — that's push_csv's job — so Argora never becomes a
+    competing lead store. Returns {written: bool, ...}; raises only on a true
+    connection error (the caller wraps it so the local log is never lost)."""
+    dsn, _ = resolve_dsn()
+    if not dsn:
+        return {"written": False, "reason": "no database configured"}
+    try:
+        import psycopg
+    except ImportError:
+        return {"written": False, "reason": "psycopg not installed"}
+
+    status = _OUTCOME_STATUS.get(outcome, "contacted")
+    note_line = f"[argora/{channel}] {outcome}" + (f": {note}" if note else "")
+
+    with psycopg.connect(dsn, connect_timeout=15) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE leads "
+                "SET status = %s::lead_status, "
+                "    notes = trim(coalesce(notes,'') || E'\\n' || %s), "
+                "    updated_at = now() "
+                "WHERE source_place_id = %s "
+                "RETURNING id",
+                (status, note_line, lead_key))
+            row = cur.fetchone()
+            if not row:
+                return {"written": False,
+                        "reason": "lead not in KunthiveOS yet — push it first"}
+            lead_id = row[0]
+        conn.commit()                       # the status update is now durable
+
+        # An activity row is a nice-to-have. Run it in its OWN transaction so a
+        # missing/locked activities table (which would abort the transaction in
+        # Postgres) can never undo the status update above.
+        try:
+            with conn.cursor() as cur:
+                ch = _ACTIVITY_CHANNEL.get(channel, "system")
+                cur.execute(
+                    "INSERT INTO activities "
+                    "(entity_type, entity_id, type, channel, summary) "
+                    "VALUES ('lead', %s, 'note', %s::activity_channel, %s)",
+                    (lead_id, ch, note_line))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+    return {"written": True, "status": status, "lead_id": lead_id}
 
 
 def _redact(origin):

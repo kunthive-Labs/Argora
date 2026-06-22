@@ -13,6 +13,10 @@ venv/
 data/raw/*
 data/leads/*
 data/sql/*
+data/extracts/*
+data/outreach/*
 !data/raw/.gitkeep
 !data/leads/.gitkeep
 !data/sql/.gitkeep
+!data/extracts/.gitkeep
+!data/outreach/.gitkeep

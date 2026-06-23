@@ -216,7 +216,7 @@ class TouchReq(BaseModel):
 # ----- routes ----------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
-    with open(os.path.join(STATIC, "index.html")) as f:
+    with open(os.path.join(STATIC, "index.html"), encoding="utf-8") as f:
         return f.read()
 
 

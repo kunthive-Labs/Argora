@@ -82,8 +82,8 @@ when Google changes its markup.
 
 ```bash
 # 1. Clone
-git clone git@github.com:kunthive-Labs/Argora.git maps-lead-finder
-cd maps-lead-finder
+git clone git@github.com:kunthive-Labs/Argora.git
+cd argora
 
 # 2. Create + activate a virtualenv
 python3 -m venv .venv

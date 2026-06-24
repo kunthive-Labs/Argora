@@ -336,16 +336,13 @@
     <div class="head"><span class="fol">fol. 1</span><h2>Open an entry</h2>
       <span class="desc">choose the trades to canvass, then a locality</span></div>
 
-    <label>Trades <span class="lc">— preset accounts, ranked on entry. Add any of your own below.</span></label>
-    <input type="text" id="chipfilter" placeholder="filter the index…" style="max-width:280px;margin-bottom:11px">
-    <div class="chips" id="chips"></div>
+    <label>Business Category / Trades <span class="lc">— type any custom category (comma-separated) or click preset buttons below</span></label>
+    <input type="text" id="customin" autocomplete="off" style="margin-bottom:11px"
+      placeholder="e.g. dentist, gym, yoga studio, car detailing, cafe">
 
-    <div class="addrow">
-      <input type="text" id="customin" autocomplete="off"
-        placeholder="write in any trade — e.g. yoga studio, car detailing, cafe">
-      <button class="sm" id="addcustom">+ Enter</button>
-    </div>
-    <div class="chips" id="customchips" style="margin-top:11px"></div>
+    <label style="margin-top:12px;display:block">Presets <span class="lc">— quick select buttons (clicks will toggle text above)</span></label>
+    <input type="text" id="chipfilter" placeholder="filter presets…" style="max-width:280px;margin-bottom:11px">
+    <div class="chips" id="chips"></div>
 
     <div class="row" style="margin-top:20px">
       <div style="flex:2">
@@ -408,6 +405,17 @@
       <div class="fld"><label>Min score</label><input type="number" id="fScore" min="0" max="100" placeholder="0"></div>
       <div class="fld"><label>Min rating</label><input type="number" id="fRating" min="0" max="5" step="0.1" placeholder="0"></div>
       <div class="fld"><label>Min reviews</label><input type="number" id="fRev" min="0" placeholder="0"></div>
+      <div class="fld"><label>Reviews range</label>
+        <select id="fRevRange">
+          <option value="">any</option>
+          <option value="0-50">0-50</option>
+          <option value="50-100">50-100</option>
+          <option value="100-200">100-200</option>
+          <option value="200-400">200-400</option>
+          <option value="400-700">400-700</option>
+          <option value="700+">700+</option>
+        </select>
+      </div>
       <div class="fld" style="display:flex;align-items:flex-end"><button class="sm ghost" id="fClear">Clear</button></div>
     </div>
 
@@ -532,38 +540,57 @@
 const $=s=>document.querySelector(s);
 const api=(p,o)=>fetch(p,o).then(r=>r.ok?r.json():r.json().then(e=>Promise.reject(e.detail||r.statusText)));
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let selected=new Set(), customCats=[], es=null, sqlText="", sqlFile="";
+let presetsList = [], es = null, sqlText = "", sqlFile = "";
 
 /* ---------- 1 · trades ---------- */
+function updateChipsFromInput() {
+  const val = $('#customin').value;
+  const terms = val.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  
+  $('#chips').querySelectorAll('.chip').forEach(c => {
+    const key = c.dataset.key.toLowerCase();
+    const query = (c.dataset.query || '').toLowerCase();
+    const isSelected = terms.includes(key) || terms.includes(query);
+    c.classList.toggle('on', isSelected);
+  });
+}
+
+function toggleChip(chip, key, query) {
+  let val = $('#customin').value.trim();
+  let terms = val.split(',').map(s => s.trim()).filter(Boolean);
+  
+  const keyLower = key.toLowerCase();
+  const queryLower = query.toLowerCase();
+  
+  let index = terms.findIndex(t => t.toLowerCase() === keyLower || t.toLowerCase() === queryLower);
+  if (index !== -1) {
+    terms.splice(index, 1);
+    chip.classList.remove('on');
+  } else {
+    terms.push(key);
+    chip.classList.add('on');
+  }
+  $('#customin').value = terms.join(', ');
+}
+
 api('/api/sectors').then(list=>{
+  presetsList = list;
   const box=$('#chips'); box.innerHTML='';
   list.forEach(s=>{
-    const el=document.createElement('div'); el.className='chip'; el.dataset.key=s.key;
+    const el=document.createElement('div'); el.className='chip'; el.dataset.key=s.key; el.dataset.query=s.query;
     el.innerHTML=`${esc(s.key)}<small>≥${s.min_reviews}★</small>`;
-    el.onclick=()=>{el.classList.toggle('on'); selected.has(s.key)?selected.delete(s.key):selected.add(s.key);};
+    el.onclick=()=>{ toggleChip(el, s.key, s.query); };
     box.appendChild(el);
   });
+  updateChipsFromInput();
 });
+
 $('#chipfilter').oninput=e=>{
   const q=e.target.value.toLowerCase();
   $('#chips').querySelectorAll('.chip').forEach(c=>c.classList.toggle('hidden',!c.dataset.key.includes(q)));
 };
-function renderCustom(){
-  const box=$('#customchips'); box.innerHTML='';
-  customCats.forEach((q,i)=>{
-    const el=document.createElement('div'); el.className='chip custom';
-    el.innerHTML=`${esc(q)} <span class="x">✕</span>`;
-    el.querySelector('.x').onclick=()=>{customCats.splice(i,1); renderCustom();};
-    box.appendChild(el);
-  });
-}
-function addCustom(){
-  const v=$('#customin').value.trim();
-  if(v && !customCats.includes(v)) customCats.push(v);
-  $('#customin').value=''; renderCustom();
-}
-$('#addcustom').onclick=addCustom;
-$('#customin').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addCustom();}};
+
+$('#customin').oninput = updateChipsFromInput;
 
 /* ---------- 2 · post + posting log ---------- */
 function logLine(line){
@@ -586,13 +613,29 @@ function setRunning(on){
   $('#pill').className='nib '+(on?'run':'done');
 }
 $('#go').onclick=async()=>{
-  if(!selected.size && !customCats.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Choose a trade or write one in.';return;}
+  const val = $('#customin').value.trim();
+  const terms = val.split(',').map(s => s.trim()).filter(Boolean);
+  
+  if(!terms.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Choose a trade or write one in.';return;}
   if(!$('#loc').value.trim()){$('#runhint').className='runhint msg err';$('#runhint').textContent='Name a locality.';return;}
+  
+  const selectedSectors = [];
+  const customSectors = [];
+  
+  terms.forEach(term => {
+    const match = presetsList.find(p => p.key.toLowerCase() === term.toLowerCase() || p.query.toLowerCase() === term.toLowerCase());
+    if (match) {
+      selectedSectors.push(match.key);
+    } else {
+      customSectors.push(term);
+    }
+  });
+
   $('#runhint').textContent=''; $('#console').innerHTML=''; window._sum=[]; renderStats(); setRunning(true);
   const mr=$('#minrev').value.trim();
   try{
     const {job_id}=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sectors:[...selected],custom:customCats,location:$('#loc').value,
+      body:JSON.stringify({sectors:selectedSectors,custom:customSectors,location:$('#loc').value,
         max:+$('#max').value,headless:$('#headless').checked,min_reviews:mr===''?null:+mr})});
     es=new EventSource('/api/stream/'+job_id);
     es.onmessage=e=>{
@@ -641,7 +684,7 @@ async function loadResults(name){
 }
 function activeFilters(){
   return {q:$('#fSearch').value.toLowerCase().trim(), web:$('#fWeb').value, tier:$('#fTier').value,
-    score:+$('#fScore').value||0, rating:+$('#fRating').value||0, rev:+$('#fRev').value||0};
+    score:+$('#fScore').value||0, rating:+$('#fRating').value||0, rev:+$('#fRev').value||0, revRange:$('#fRevRange').value};
 }
 function renderTable(){
   const f=activeFilters();
@@ -652,6 +695,15 @@ function renderTable(){
     if(f.score && (+r.score||0)<f.score)return false;
     if(f.rating && (+r.rating||0)<f.rating)return false;
     if(f.rev && (+r.reviews||0)<f.rev)return false;
+    if(f.revRange){
+      const rc = +r.reviews||0;
+      if(f.revRange==='0-50' && (rc < 0 || rc > 50)) return false;
+      if(f.revRange==='50-100' && (rc <= 50 || rc > 100)) return false;
+      if(f.revRange==='100-200' && (rc <= 100 || rc > 200)) return false;
+      if(f.revRange==='200-400' && (rc <= 200 || rc > 400)) return false;
+      if(f.revRange==='400-700' && (rc <= 400 || rc > 700)) return false;
+      if(f.revRange==='700+' && rc <= 700) return false;
+    }
     return true;
   });
   rows.sort((a,b)=>{
@@ -693,8 +745,8 @@ window.rowDetail=i=>{
   }).join('')+'</div>';
   $('#preview').showModal();
 };
-['fSearch','fWeb','fTier','fScore','fRating','fRev'].forEach(id=>$('#'+id).addEventListener('input',renderTable));
-$('#fClear').onclick=()=>{['fSearch','fScore','fRating','fRev'].forEach(id=>$('#'+id).value='');$('#fWeb').value='';$('#fTier').value='';renderTable();};
+['fSearch','fWeb','fTier','fScore','fRating','fRev','fRevRange'].forEach(id=>$('#'+id).addEventListener('input',renderTable));
+$('#fClear').onclick=()=>{['fSearch','fScore','fRating','fRev'].forEach(id=>$('#'+id).value='');$('#fWeb').value='';$('#fTier').value='';$('#fRevRange').value='';renderTable();};
 $('#resfile').onchange=e=>loadResults(e.target.value);
 $('#refresh').onclick=loadFiles;
 $('#dlcur').onclick=()=>{const n=$('#resfile').value; if(n)location.href='/api/download/'+encodeURIComponent(n);};

@@ -111,9 +111,16 @@ def run_job(job, sectors_sel, custom, location, max_results, headless,
             job.emit("phase", sector=name, label=f"{name} @ {location}")
             job.log(f"▶ {query} in {location} (max {max_results}, ≥{min_reviews}★rev)")
 
-            records = scraper.scrape(
-                query, location, max_results, headless,
-                log=job.log, should_stop=lambda: job.stop)
+            records = []
+            scrape_err = None
+            try:
+                records = scraper.scrape(
+                    query, location, max_results, headless,
+                    log=job.log, should_stop=lambda: job.stop)
+            except scraper.ScrapeError as e:
+                records = e.results
+                scrape_err = e
+                job.log(f"  ! scraping failed mid-way: {e}")
 
             with open(raw_path, "w") as f:
                 json.dump(records, f, indent=2, ensure_ascii=False)
@@ -134,6 +141,9 @@ def run_job(job, sectors_sel, custom, location, max_results, headless,
             job.emit("summary", **s)
             job.log(f"  ✓ {len(leads)} leads · {len(comps)} competitors · "
                     f"{len(allrec)} total → data/leads/{stem}-LEADS.csv\n")
+
+            if scrape_err:
+                raise scrape_err
     except Exception as e:  # surface, don't crash the server
         job.log(f"✗ error: {e}")
         job.emit("error", message=str(e))

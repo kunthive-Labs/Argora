@@ -33,13 +33,24 @@ def main():
     out_stem = f"data/leads/{stem}"
 
     print(f"== {args.sector} @ {args.location} ==")
-    records = scraper.scrape(s["query"], args.location, args.max, args.headless)
+    records = []
+    scrape_err = None
+    try:
+        records = scraper.scrape(s["query"], args.location, args.max, args.headless)
+    except scraper.ScrapeError as e:
+        records = e.results
+        scrape_err = e
+        print(f"  ! scraping failed mid-way: {e}")
+
     import json
     with open(raw_path, "w") as f:
         json.dump(records, f, indent=2, ensure_ascii=False)
     print(f"raw → {raw_path}")
 
     analyze.main([raw_path, "--out", out_stem, "--sector", args.sector])
+
+    if scrape_err:
+        raise scrape_err
 
 
 if __name__ == "__main__":

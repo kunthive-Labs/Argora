@@ -26,7 +26,7 @@ def main():
     if not args.no_open:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
 
-    print(f"\n  maps-lead-finder → {url}\n  (Ctrl-C to stop)\n")
+    print(f"\n  maps-lead-finder -> {url}\n  (Ctrl-C to stop)\n")
     uvicorn.run("webapp.server:app", host=args.host, port=args.port, log_level="warning")
 
 

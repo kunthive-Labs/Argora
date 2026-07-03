@@ -319,7 +319,7 @@ def generate(rows, dataset, only_leads=True):
 
 
 def load_csv(path):
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
@@ -339,7 +339,7 @@ def main(argv=None):
 
     if args.out:
         os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-        with open(args.out, "w") as f:
+        with open(args.out, "w", encoding="utf-8") as f:
             f.write(sql)
         print(f"Wrote {n} INSERT rows → {args.out}")
     else:

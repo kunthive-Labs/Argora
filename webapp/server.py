@@ -15,9 +15,12 @@ Run via ../app.py (which opens your browser). Endpoints:
 One job runs at a time (a scrape opens a real browser). Playwright's sync API
 runs in a worker thread, never the asyncio loop thread.
 """
+import datetime
 import json
+import logging
 import os
 import queue
+import tempfile
 import threading
 import time
 
@@ -30,8 +33,11 @@ from pydantic import BaseModel
 from leadfinder import (analyze, db, extractor, outreach, outreach_log,
                         scraper, sectors, sql_gen)
 
+_log = logging.getLogger(__name__)
+
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(BASE, "data", "raw")
+LAST_JOB = os.path.join(BASE, "data", "last_job.json")
 LEADS = os.path.join(BASE, "data", "leads")
 SQL = os.path.join(BASE, "data", "sql")
 EXTRACTS = os.path.join(BASE, "data", "extracts")
@@ -54,23 +60,67 @@ app.add_middleware(
 
 
 # ----- job state -------------------------------------------------------------
+MAX_JOB_LOG_LINES = 500      # kept for the post-completion replay / last_job.json
+
+
 class Job:
-    def __init__(self, job_id):
+    def __init__(self, job_id, kind="scrape", params=None):
         self.id = job_id
+        self.kind = kind
+        self.params = params or {}
+        self.started_at = datetime.datetime.now().isoformat(timespec="seconds")
         self.q = queue.Queue()
         self.done = False
         self.stop = False
+        self.error = None
         self.summary = []  # per-sector dicts
+        self.lines = []    # log lines, capped at MAX_JOB_LOG_LINES (oldest dropped)
 
     def emit(self, kind, **data):
         self.q.put({"kind": kind, **data})
 
     def log(self, line):
+        self.lines.append(str(line))
+        if len(self.lines) > MAX_JOB_LOG_LINES:
+            del self.lines[0]
         self.emit("log", line=str(line))
 
 
 _lock = threading.Lock()
-_current = {"job": None}
+_current = {"job": None, "last": None}
+
+
+def _finish_job(job):
+    """Persist the finished job (data/last_job.json, atomic write) so the UI
+    can show the last run after the SSE stream closes or the server restarts,
+    then free the single job slot."""
+    payload = {
+        "job_id": job.id,
+        "kind": job.kind,
+        "started_at": job.started_at,
+        "finished_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "ok": job.error is None,
+        "stopped": job.stop,
+        "error": job.error,
+        "params": job.params,
+        "summary": job.summary,
+        "log": job.lines,
+    }
+    try:
+        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(LAST_JOB),
+                                   prefix=".job-", suffix=".json")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, LAST_JOB)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+    except Exception as e:
+        _log.warning("could not persist %s: %s", LAST_JOB, e)
+    with _lock:
+        _current["last"] = job
+        _current["job"] = None
 
 
 def _slug(s):
@@ -121,8 +171,9 @@ def run_job(job, sectors_sel, custom, location, max_results, headless,
                 records = e.results
                 scrape_err = e
                 job.log(f"  ! scraping failed mid-way: {e}")
+                scraper.report_field_yield(records, job.log)
 
-            with open(raw_path, "w") as f:
+            with open(raw_path, "w", encoding="utf-8") as f:
                 json.dump(records, f, indent=2, ensure_ascii=False)
             job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
 
@@ -145,13 +196,13 @@ def run_job(job, sectors_sel, custom, location, max_results, headless,
             if scrape_err:
                 raise scrape_err
     except Exception as e:  # surface, don't crash the server
+        job.error = str(e)
         job.log(f"✗ error: {e}")
         job.emit("error", message=str(e))
     finally:
         job.emit("done")
         job.done = True
-        with _lock:
-            _current["job"] = None
+        _finish_job(job)
 
 
 def run_extract_job(job, url, mode, headless):
@@ -165,13 +216,13 @@ def run_extract_job(job, url, mode, headless):
                 else "text" if res["text_file"] else "empty")
         job.log(f"  ● done — {kind} · folder: {res['folder'] or '(none)'}")
     except Exception as e:
+        job.error = str(e)
         job.log(f"✗ error: {e}")
         job.emit("error", message=str(e))
     finally:
         job.emit("done")
         job.done = True
-        with _lock:
-            _current["job"] = None
+        _finish_job(job)
 
 
 # ----- models ----------------------------------------------------------------
@@ -246,7 +297,9 @@ def start_run(req: RunReq):
             raise HTTPException(400, "Pick a preset or add a custom category.")
         if not req.location.strip():
             raise HTTPException(400, "Location is required.")
-        job = Job(str(int(time.time() * 1000)))
+        job = Job(str(int(time.time() * 1000)), kind="scrape",
+                  params={"sectors": req.sectors, "custom": custom,
+                          "location": req.location.strip(), "max": req.max})
         _current["job"] = job
     mr = None if req.min_reviews is None else max(0, req.min_reviews)
     t = threading.Thread(target=run_job, args=(
@@ -268,24 +321,52 @@ def stop_run():
 @app.get("/api/stream/{job_id}")
 def stream(job_id: str):
     job = _current["job"]
-    if not job or job.id != job_id:
-        raise HTTPException(404, "No such job (it may have finished).")
+    if job and job.id == job_id:
+        def gen():
+            while True:
+                try:
+                    msg = job.q.get(timeout=15)
+                    yield f"data: {json.dumps(msg)}\n\n"
+                    if msg["kind"] == "done":
+                        break
+                except queue.Empty:
+                    yield ": keep-alive\n\n"  # heartbeat
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
-    def gen():
-        while True:
-            try:
-                msg = job.q.get(timeout=15)
-                yield f"data: {json.dumps(msg)}\n\n"
-                if msg["kind"] == "done":
-                    break
-            except queue.Empty:
-                yield ": keep-alive\n\n"  # heartbeat
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    # the job just finished (or the client reconnected): replay its outcome
+    last = _current["last"]
+    if last and last.id == job_id:
+        def replay():
+            for line in last.lines:
+                yield f"data: {json.dumps({'kind': 'log', 'line': line})}\n\n"
+            for s in last.summary:
+                yield f"data: {json.dumps({'kind': 'summary', **s})}\n\n"
+            if last.error:
+                yield f"data: {json.dumps({'kind': 'error', 'message': last.error})}\n\n"
+            yield f"data: {json.dumps({'kind': 'done'})}\n\n"
+        return StreamingResponse(replay(), media_type="text/event-stream")
+
+    raise HTTPException(404, "No such job.")
+
+
+@app.get("/api/last-job")
+def last_job():
+    """The most recently finished job's persisted outcome (survives restarts)."""
+    try:
+        with open(LAST_JOB, encoding="utf-8") as f:
+            data = json.load(f)
+        data["exists"] = True
+        return data
+    except FileNotFoundError:
+        return {"exists": False}
+    except Exception as e:
+        _log.warning("%s unreadable: %s", LAST_JOB, e)
+        return {"exists": False}
 
 
 def _csv_rows(path):
     import csv
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
@@ -305,8 +386,10 @@ def files():
             continue
         path = os.path.join(LEADS, fn)
         try:
-            n = sum(1 for _ in open(path)) - 1
-        except Exception:
+            with open(path, encoding="utf-8") as f:
+                n = sum(1 for _ in f) - 1
+        except Exception as e:
+            _log.warning("could not count rows in %s: %s", fn, e)
             n = 0
         kind = ("LEADS" if "-LEADS" in fn else
                 "COMPETITORS" if "-COMPETITORS" in fn else "ALL")
@@ -386,7 +469,8 @@ def start_extract(req: ExtractReq):
     with _lock:
         if _current["job"] and not _current["job"].done:
             raise HTTPException(409, "A job is already running.")
-        job = Job(str(int(time.time() * 1000)))
+        job = Job(str(int(time.time() * 1000)), kind="extract",
+                  params={"url": url, "mode": mode})
         _current["job"] = job
     t = threading.Thread(target=run_extract_job,
                          args=(job, url, mode, req.headless), daemon=True)

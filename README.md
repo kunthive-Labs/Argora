@@ -60,6 +60,7 @@ data/leads/        ← the deliverables — csv        (git-ignored)
 data/sql/          ← generated Supabase sql        (git-ignored)
 data/extracts/     ← transcribed competitor pages  (git-ignored)
 data/outreach/     ← the outreach log (PII)         (git-ignored)
+data/last_job.json ← the last run's outcome + log   (git-ignored)
 ```
 
 The split is deliberate: the scraper is a maintenance treadmill (selectors rot,
@@ -94,6 +95,16 @@ pip install -r requirements.txt
 
 # 4. Install the Chromium browser Playwright drives
 playwright install chromium
+```
+
+### Tests
+
+The intelligence layer (ranking, analysis, SQL generation, outreach) is covered
+by a pytest suite — pure functions, no browser or network needed:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
 ```
 
 > **Two things do NOT come through git** (they're git-ignored on purpose):

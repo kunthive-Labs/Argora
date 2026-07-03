@@ -175,14 +175,14 @@ def load(paths):
     records = []
     for pattern in paths:
         for path in sorted(glob.glob(pattern)) or [pattern]:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             records.extend(data if isinstance(data, list) else data.get("items", []))
     return records
 
 
 def write_csv(path, rows):
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS, extrasaction="ignore")
         w.writeheader()
         for r in rows:

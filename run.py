@@ -41,9 +41,10 @@ def main():
         records = e.results
         scrape_err = e
         print(f"  ! scraping failed mid-way: {e}")
+        scraper.report_field_yield(records)
 
     import json
-    with open(raw_path, "w") as f:
+    with open(raw_path, "w", encoding="utf-8") as f:
         json.dump(records, f, indent=2, ensure_ascii=False)
     print(f"raw → {raw_path}")
 

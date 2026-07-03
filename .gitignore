@@ -10,6 +10,7 @@ venv/
 
 # Scraped data + generated SQL = local only (PII; never push by mistake).
 # The .gitkeep files keep the folders tracked; the contents stay out.
+data/last_job.json
 data/raw/*
 data/leads/*
 data/sql/*

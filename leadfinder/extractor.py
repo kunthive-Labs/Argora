@@ -24,9 +24,12 @@ Usage (CLI):
         --out data/extracts --mode auto
 """
 import argparse
+import logging
 import os
 import re
 from urllib.parse import urlparse
+
+_log = logging.getLogger(__name__)
 
 # A page with fewer than this many non-whitespace characters of selectable text
 # is treated as "no real text" → we screenshot it instead.
@@ -63,8 +66,8 @@ def _scroll_through(page, pause_ms=400, max_steps=40):
             height = page.evaluate("document.body.scrollHeight") or height
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(pause_ms)
-    except Exception:
-        pass  # best-effort; a failed scroll never blocks the capture
+    except Exception as e:  # best-effort; a failed scroll never blocks the capture
+        _log.warning("lazy-load scroll failed (continuing): %s", e)
 
 
 def extract(url, out_root, mode="auto", headless=True, pause=1.0,

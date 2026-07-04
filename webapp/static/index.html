@@ -1010,6 +1010,15 @@ loadFiles();
 refreshDbStatus();
 loadExtracts();
 loadFollowups();
+(async()=>{  // show the previous run's outcome (persisted server-side)
+  try{
+    const d=await api('/api/last-job');
+    if(!d.exists||d.kind!=='scrape'||!(d.summary||[]).length)return;
+    window._sum=d.summary; renderStats();
+    const leads=d.summary.reduce((a,s)=>a+s.leads,0);
+    logLine(`● last run: ${d.finished_at} — ${d.summary.length} trade(s), ${leads} leads`);
+  }catch(e){/* older server or no last job — nothing to show */}
+})();
 </script>
 </body>
 </html>

@@ -52,6 +52,51 @@ def _attr(page, selector, attr):
     return el.get_attribute(attr) if el else ""
 
 
+def _strip_label(s):
+    """Drop a leading 'Label: ' prefix from an aria-label, locale-agnostic
+    ('Phone: 080…', 'Telefon: +49…', 'Address: 12, MG Road')."""
+    return re.sub(r"^[^:,\d+]{1,24}:\s*", "", (s or "").strip())
+
+
+# ── field-yield report ────────────────────────────────────────────────────────
+# After a scrape, how many results actually carried each field? A sudden drop
+# means the matching SEL entry went stale (Google DOM change) — the failure
+# mode is otherwise silent blanks. `website` is deliberately excluded: low
+# website yield is the product working, not selector rot.
+YIELD_FIELDS = {  # record field -> SEL key to blame in the warning
+    "name": "detail_name", "rating": "detail_rating", "reviews": "detail_reviews",
+    "category": "detail_category", "address": "detail_address", "phone": "btn_phone",
+}
+YIELD_WARN = {"name": 0.90, "rating": 0.60, "reviews": 0.60,
+              "category": 0.60, "address": 0.60, "phone": 0.30}
+MIN_YIELD_SAMPLE = 10   # below this, low yield is noise, not signal
+
+
+def field_yield(results):
+    """{field: fraction of results with a non-empty value}, {} when empty."""
+    if not results:
+        return {}
+    n = len(results)
+    return {f: sum(1 for r in results if str(r.get(f) or "").strip()) / n
+            for f in YIELD_FIELDS}
+
+
+def report_field_yield(results, log=print):
+    """Log a one-line yield summary; warn loudly per field when a batch is big
+    enough (>= MIN_YIELD_SAMPLE) and a field's yield is suspiciously low."""
+    fy = field_yield(results)
+    if not fy:
+        return
+    log("  field yield: " + ", ".join(f"{f} {fy[f]:.0%}" for f in YIELD_FIELDS))
+    if len(results) < MIN_YIELD_SAMPLE:
+        return
+    for f, frac in fy.items():
+        if frac < YIELD_WARN[f]:
+            log(f"  !! LOW YIELD: only {frac:.0%} of {len(results)} places have "
+                f"'{f}' — SEL['{YIELD_FIELDS[f]}'] may be stale (Google DOM "
+                f"change). Update SEL in leadfinder/scraper.py.")
+
+
 class ScrapeError(Exception):
     """Raised when scraping is interrupted but partial results are available."""
     def __init__(self, message, results):
@@ -120,10 +165,10 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
                                           _attr(page, SEL["detail_reviews"], "aria-label") or ""),
                         "category": _txt(page, SEL["detail_category"]),
                         "website": _attr(page, SEL["btn_website"], "href") or "",
-                        "phone": (_attr(page, SEL["btn_phone"], "aria-label") or "")
-                                 .replace("Phone: ", ""),
-                        "address": (_attr(page, SEL["detail_address"], "aria-label") or "")
-                                   .replace("Address: ", ""),
+                        "phone": _strip_label(
+                            _attr(page, SEL["btn_phone"], "aria-label")),
+                        "address": _strip_label(
+                            _attr(page, SEL["detail_address"], "aria-label")),
                         "mapsUrl": url,
                     }
                     results.append(rec)
@@ -142,6 +187,7 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
     except Exception as e:
         raise ScrapeError(str(e), results) from e
 
+    report_field_yield(results, log)
     return results
 
 
@@ -159,7 +205,7 @@ def main(argv=None):
     print(f"Scraping '{args.search}' in '{args.location}' (max {args.max})…")
     records = scrape(args.search, args.location, args.max, args.headless)
 
-    with open(args.out, "w") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         json.dump(records, f, indent=2, ensure_ascii=False)
     print(f"Saved {len(records)} places → {args.out}")
     print(f"Next: python -m leadfinder.analyze {args.out} --out data/leads/<stem> --sector <name>")

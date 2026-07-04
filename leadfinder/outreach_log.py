@@ -18,8 +18,11 @@ touch logged here lines up exactly with the row in KunthiveOS.
 """
 import datetime as _dt
 import json
+import logging
 import os
 import tempfile
+
+_log = logging.getLogger(__name__)
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR = os.path.join(BASE, "data", "outreach")
@@ -44,7 +47,8 @@ def load():
         if not isinstance(data, dict) or "touches" not in data:
             return {"version": 1, "touches": []}
         return data
-    except Exception:
+    except Exception as e:
+        _log.warning("outreach log unreadable — starting with an empty log: %s", e)
         return {"version": 1, "touches": []}
 
 

@@ -18,10 +18,13 @@ direct-Postgres connection ({host,port,user,password,database}). It's git-ignore
 on the KunthiveOS side, so creds never travel through this repo.
 """
 import json
+import logging
 import os
 import urllib.parse
 
 from leadfinder import sql_gen
+
+_log = logging.getLogger(__name__)
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -33,7 +36,7 @@ def _load_env_file():
     if not os.path.exists(path):
         return
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
@@ -41,8 +44,8 @@ def _load_env_file():
                 key, _, val = line.partition("=")
                 key, val = key.strip(), val.strip().strip('"').strip("'")
                 os.environ.setdefault(key, val)
-    except Exception:
-        pass  # a broken .env shouldn't take the server down
+    except Exception as e:  # a broken .env shouldn't take the server down
+        _log.warning("Ignoring unreadable .env at %s: %s", path, e)
 
 
 _load_env_file()
@@ -57,7 +60,7 @@ def _conn_json_candidates():
 
 
 def _dsn_from_conn_json(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         c = json.load(f)
     # URL-encode user + password: Supabase passwords routinely contain @ / : ? #
     # which otherwise corrupt the DSN (the userinfo bleeds into the host/query).

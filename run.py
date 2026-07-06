@@ -42,13 +42,20 @@ def main():
         scrape_err = e
         print(f"  ! scraping failed mid-way: {e}")
         scraper.report_field_yield(records)
+    except Exception as e:
+        scrape_err = e
+        print(f"  ! scraping encountered unexpected error: {e}")
 
-    import json
-    with open(raw_path, "w", encoding="utf-8") as f:
-        json.dump(records, f, indent=2, ensure_ascii=False)
-    print(f"raw → {raw_path}")
+    if records:
+        with open(raw_path, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2, ensure_ascii=False)
+        print(f"raw → {raw_path}")
 
-    analyze.main([raw_path, "--out", out_stem, "--sector", args.sector])
+        suffix = "-RECOVERED" if scrape_err else ""
+        out_stem_final = f"{out_stem}{suffix}"
+        analyze.main([raw_path, "--out", out_stem_final, "--sector", args.sector])
+    else:
+        print("  ! no records collected.")
 
     if scrape_err:
         raise scrape_err

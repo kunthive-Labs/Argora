@@ -170,28 +170,39 @@ def run_job(job, sectors_sel, custom, location, max_results, headless,
             except scraper.ScrapeError as e:
                 records = e.results
                 scrape_err = e
-                job.log(f"  ! scraping failed mid-way: {e}")
+                job.log(f"  ! scraping interrupted: {e}")
                 scraper.report_field_yield(records, job.log)
+            except Exception as e:
+                scrape_err = e
+                job.log(f"  ! unexpected scraper failure: {e}")
 
-            with open(raw_path, "w", encoding="utf-8") as f:
-                json.dump(records, f, indent=2, ensure_ascii=False)
-            job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
+            if records:
+                # Always save whatever raw records we got
+                with open(raw_path, "w", encoding="utf-8") as f:
+                    json.dump(records, f, indent=2, ensure_ascii=False)
+                job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
 
-            allrec, leads, comps = analyze.analyze(
-                records, exclude, min_reviews)
-            analyze.write_csv(f"{out_stem}-ALL.csv", allrec)
-            analyze.write_csv(f"{out_stem}-LEADS.csv", leads)
-            analyze.write_csv(f"{out_stem}-COMPETITORS.csv", comps)
+                # Run analysis on the partial records
+                allrec, leads, comps = analyze.analyze(
+                    records, exclude, min_reviews)
+                
+                # If it was an error/interrupted run, mark files as recovered
+                suffix = "-RECOVERED" if (scrape_err or job.stop) else ""
+                analyze.write_csv(f"{out_stem}{suffix}-ALL.csv", allrec)
+                analyze.write_csv(f"{out_stem}{suffix}-LEADS.csv", leads)
+                analyze.write_csv(f"{out_stem}{suffix}-COMPETITORS.csv", comps)
 
-            s = {"sector": name, "location": location,
-                 "scraped": len(allrec), "leads": len(leads),
-                 "competitors": len(comps),
-                 "top": (leads[0]["name"] + f" ({leads[0]['reviews']}★rev)") if leads else "—",
-                 "stem": stem}
-            job.summary.append(s)
-            job.emit("summary", **s)
-            job.log(f"  ✓ {len(leads)} leads · {len(comps)} competitors · "
-                    f"{len(allrec)} total → data/leads/{stem}-LEADS.csv\n")
+                s = {"sector": name, "location": location,
+                     "scraped": len(allrec), "leads": len(leads),
+                     "competitors": len(comps),
+                     "top": (leads[0]["name"] + f" ({leads[0]['reviews']}★rev)") if leads else "—",
+                     "stem": stem + suffix}
+                job.summary.append(s)
+                job.emit("summary", **s)
+                job.log(f"  ✓ {len(leads)} leads · {len(comps)} competitors · "
+                        f"{len(allrec)} total → data/leads/{stem}{suffix}-LEADS.csv\n")
+            else:
+                job.log("  ! no records collected to analyze.")
 
             if scrape_err:
                 raise scrape_err

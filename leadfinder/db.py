@@ -7,6 +7,13 @@ NOTHING). Here we just *execute* that same SQL against Postgres instead of
 writing it to a .sql file — so the dedup guarantees are byte-for-byte identical
 whether you paste the SQL in the Supabase editor or click "Push" in the UI.
 
+Deliberately NOT parameterized: a parameterized path would have to re-implement
+generate()'s row selection + intra-batch dedup and would break the byte-identical
+paste-or-push guarantee above. The escaping is sound because sql_gen emits only
+quote-doubled standard string literals (never E'…' strings, so backslashes stay
+literal) and validates every numeric/enum value — and push_csv pins that one
+assumption by setting standard_conforming_strings=on before executing.
+
 DSN resolution, in order:
   1. $DATABASE_URL                         (an explicit postgres URL)
   2. $KUNTHIVE_OS_DB_CONN                   (path to a .db-conn.json)
@@ -131,6 +138,8 @@ def push_csv(csv_path, dataset, only_leads=True):
 
     with psycopg.connect(dsn, connect_timeout=15) as conn:
         with conn.cursor() as cur:
+            # pin the one assumption sql_gen's quote-doubling escaping rests on
+            cur.execute("SET standard_conforming_strings = on")
             cur.execute(sql)
             inserted = cur.rowcount  # INSERT-only → rowcount is exactly the new rows
         conn.commit()

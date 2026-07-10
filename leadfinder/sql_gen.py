@@ -323,6 +323,11 @@ def load_csv(path):
         return list(csv.DictReader(f))
 
 
+def stem_of(csv_name):
+    """'…/gym-hsr-LEADS.csv' -> 'gym-hsr' — the run stem a csv belongs to."""
+    return os.path.basename(csv_name).replace("-LEADS.csv", "").replace(".csv", "")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="CSV -> KunthiveOS leads INSERT SQL.")
     ap.add_argument("csv", help="a *-LEADS.csv (or *-ALL.csv) from analyze")
@@ -332,7 +337,7 @@ def main(argv=None):
                     help="also include businesses that HAVE a real website")
     args = ap.parse_args(argv)
 
-    stem = os.path.basename(args.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    stem = stem_of(args.csv)
     dataset = args.dataset or f"argora/{stem}"
     rows = load_csv(args.csv)
     sql, n = generate(rows, dataset, only_leads=not args.include_has_site)

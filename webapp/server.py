@@ -435,7 +435,7 @@ def gen_sql(req: SqlReq):
     if not os.path.exists(path):
         raise HTTPException(404, "CSV not found")
     rows = sql_gen.load_csv(path)
-    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    stem = sql_gen.stem_of(req.csv)
     dataset = req.dataset or f"argora/{stem}"
     sql, n = sql_gen.generate(rows, dataset, only_leads=not req.include_has_site)
     out_name = stem + ".sql"
@@ -457,7 +457,7 @@ def push_db(req: PushReq):
     path = os.path.join(LEADS, os.path.basename(req.csv))
     if not os.path.exists(path):
         raise HTTPException(404, "CSV not found")
-    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    stem = sql_gen.stem_of(req.csv)
     dataset = req.dataset or f"argora/{stem}"
     try:
         result = db.push_csv(path, dataset, only_leads=not req.include_has_site)
@@ -545,7 +545,7 @@ def outreach_queue(req: QueueReq):
     leads = _csv_rows(path)
     comps = _competitors_for(req.csv)
     touched = outreach_log.touched_keys()
-    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    stem = sql_gen.stem_of(req.csv)
     sector = stem.split("-")[0]
 
     out = []

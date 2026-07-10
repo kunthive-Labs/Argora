@@ -99,6 +99,17 @@ def test_score_0_100():
     assert sql_gen.score_0_100("bad", "x") is None
 
 
+@pytest.mark.parametrize("csv_name,expected", [
+    ("gym-hsr-LEADS.csv", "gym-hsr"),
+    ("gym-hsr-ALL.csv", "gym-hsr-ALL"),               # only -LEADS is stripped
+    ("data/leads/gym-hsr-LEADS.csv", "gym-hsr"),
+    ("gym-hsr-RECOVERED-LEADS.csv", "gym-hsr-RECOVERED"),
+    ("plain.csv", "plain"),
+])
+def test_stem_of(csv_name, expected):
+    assert sql_gen.stem_of(csv_name) == expected
+
+
 def test_tags_from_csv():
     assert sql_gen._tags_from_csv("a;b") == ["a", "b"]
     assert sql_gen._tags_from_csv(["a", "b"]) == ["a", "b"]

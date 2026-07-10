@@ -346,8 +346,9 @@
 
     <div class="row" style="margin-top:20px">
       <div style="flex:2">
-        <label>Locality <span class="lc">— canvass area by area; Google caps ~120 a search</span></label>
-        <input type="text" id="loc" placeholder="e.g. Jayanagar, Bengaluru" autocomplete="off">
+        <label>Localities <span class="lc">— one per line, canvassed in order with a rest between; Google caps ~120 a search</span></label>
+        <textarea id="locs" rows="3" style="min-height:0;resize:vertical"
+          placeholder="Jayanagar, Bengaluru&#10;HSR Layout, Bengaluru"></textarea>
       </div>
       <div style="flex:0 0 120px">
         <label>Max / search</label>
@@ -361,6 +362,10 @@
         <div style="flex:0 0 210px">
           <label>Min reviews floor <span class="lc">(blank = preset)</span></label>
           <input type="number" id="minrev" placeholder="preset default" min="0">
+        </div>
+        <div style="flex:0 0 210px">
+          <label>Rest between areas <span class="lc">(seconds)</span></label>
+          <input type="number" id="areapause" value="180" min="30" max="3600">
         </div>
         <div style="flex:1;display:flex;align-items:flex-end">
           <label class="check" style="margin-bottom:9px"><input type="checkbox" id="headless"> run headless <span class="lc">&nbsp;(higher throttle risk)</span></label>
@@ -603,10 +608,14 @@ function renderStats(){
   const box=$('#stats'); if(!window._sum||!window._sum.length){box.hidden=true;return;}
   box.hidden=false;
   const t=window._sum.reduce((a,s)=>({l:a.l+s.leads,c:a.c+s.competitors,n:a.n+s.scraped}),{l:0,c:0,n:0});
+  const areas=new Set(window._sum.map(s=>s.location)).size;
+  const errs=window._sum.filter(s=>s.error).length;
   box.innerHTML=`<div class="bcell"><b>${t.l}</b><span>leads</span></div>
     <div class="bcell"><b>${t.c}</b><span>competitors</span></div>
     <div class="bcell"><b>${t.n}</b><span>canvassed</span></div>
-    <div class="bcell"><b>${window._sum.length}</b><span>trades</span></div>`;
+    <div class="bcell"><b>${window._sum.length}</b><span>entries</span></div>
+    <div class="bcell"><b>${areas}</b><span>areas</span></div>`
+    +(errs?`<div class="bcell"><b style="color:var(--bad)">${errs}</b><span>errors</span></div>`:'');
 }
 function setRunning(on){
   $('#go').disabled=on; $('#stop').style.display=on?'inline-block':'none';
@@ -617,7 +626,8 @@ $('#go').onclick=async()=>{
   const terms = val.split(',').map(s => s.trim()).filter(Boolean);
   
   if(!terms.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Choose a trade or write one in.';return;}
-  if(!$('#loc').value.trim()){$('#runhint').className='runhint msg err';$('#runhint').textContent='Name a locality.';return;}
+  const locations=$('#locs').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!locations.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Name at least one locality.';return;}
   
   const selectedSectors = [];
   const customSectors = [];
@@ -635,7 +645,8 @@ $('#go').onclick=async()=>{
   const mr=$('#minrev').value.trim();
   try{
     const {job_id}=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sectors:selectedSectors,custom:customSectors,location:$('#loc').value,
+      body:JSON.stringify({sectors:selectedSectors,custom:customSectors,locations,
+        area_pause:+$('#areapause').value||180,
         max:+$('#max').value,headless:$('#headless').checked,min_reviews:mr===''?null:+mr})});
     es=new EventSource('/api/stream/'+job_id);
     es.onmessage=e=>{

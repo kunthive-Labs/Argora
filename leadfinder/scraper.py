@@ -197,46 +197,51 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
                 if stop():
                     log("  · stop requested — finishing early")
                     break
-                try:
-                    page.goto(url, timeout=30000)
-                    if is_captcha_page(page.url):
-                        log(f"  ✗ {CAPTCHA_STOP_MSG}")
-                        browser.close()
-                        raise ScrapeError(CAPTCHA_STOP_MSG, results, fatal=True)
-                    page.wait_for_selector(SEL["detail_name"], timeout=10000)
-                    page.wait_for_timeout(int(pause * 600))
-                    rec = {
-                        "name": _txt(page, SEL["detail_name"]),
-                        "rating": _txt(page, SEL["detail_rating"]),
-                        "reviews": re.sub(r"[^\d]", "",
-                                          _attr(page, SEL["detail_reviews"], "aria-label") or ""),
-                        "category": _txt(page, SEL["detail_category"]),
-                        "website": _attr(page, SEL["btn_website"], "href") or "",
-                        "phone": _strip_label(
-                            _attr(page, SEL["btn_phone"], "aria-label")),
-                        "address": _strip_label(
-                            _attr(page, SEL["detail_address"], "aria-label")),
-                        "mapsUrl": url,
-                    }
-                    results.append(rec)
-                    log(f"    [{i}/{len(seen_links)}] {rec['name']or '(no name)'}"
-                        f"{'  · NO-SITE' if not rec['website'] else ''}")
-                except ScrapeError:
-                    raise
-                except Exception as e:
-                    if not browser.is_connected():
-                        log("    ! browser disconnected — aborting scrape loop")
-                        raise ScrapeError(f"Browser disconnected: {e}",
-                                          results, fatal=True) from e
-                    # a CAPTCHA mid-run manifests as timeouts on every card —
-                    # check the page before writing this off as one flaky card
-                    if _hit_captcha(page):
-                        log(f"  ✗ {CAPTCHA_STOP_MSG}")
-                        browser.close()
-                        raise ScrapeError(CAPTCHA_STOP_MSG, results,
-                                          fatal=True) from e
-                    log(f"    ! skipped card {i}: {e}")
-                    continue
+                for attempt in (1, 2):      # one retry on a flaky detail page
+                    try:
+                        page.goto(url, timeout=30000)
+                        if is_captcha_page(page.url):
+                            log(f"  ✗ {CAPTCHA_STOP_MSG}")
+                            browser.close()
+                            raise ScrapeError(CAPTCHA_STOP_MSG, results, fatal=True)
+                        page.wait_for_selector(SEL["detail_name"], timeout=10000)
+                        page.wait_for_timeout(int(pause * 600))
+                        rec = {
+                            "name": _txt(page, SEL["detail_name"]),
+                            "rating": _txt(page, SEL["detail_rating"]),
+                            "reviews": re.sub(r"[^\d]", "",
+                                              _attr(page, SEL["detail_reviews"], "aria-label") or ""),
+                            "category": _txt(page, SEL["detail_category"]),
+                            "website": _attr(page, SEL["btn_website"], "href") or "",
+                            "phone": _strip_label(
+                                _attr(page, SEL["btn_phone"], "aria-label")),
+                            "address": _strip_label(
+                                _attr(page, SEL["detail_address"], "aria-label")),
+                            "mapsUrl": url,
+                        }
+                        results.append(rec)
+                        log(f"    [{i}/{len(seen_links)}] {rec['name']or '(no name)'}"
+                            f"{'  · NO-SITE' if not rec['website'] else ''}")
+                        break
+                    except ScrapeError:
+                        raise
+                    except Exception as e:
+                        if not browser.is_connected():
+                            log("    ! browser disconnected — aborting scrape loop")
+                            raise ScrapeError(f"Browser disconnected: {e}",
+                                              results, fatal=True) from e
+                        # a CAPTCHA mid-run manifests as timeouts on every card —
+                        # check the page before writing this off as one flaky card
+                        if _hit_captcha(page):
+                            log(f"  ✗ {CAPTCHA_STOP_MSG}")
+                            browser.close()
+                            raise ScrapeError(CAPTCHA_STOP_MSG, results,
+                                              fatal=True) from e
+                        if attempt == 1:
+                            log(f"    ! card {i} failed ({e}) — retrying once")
+                            page.wait_for_timeout(int(pause * 1000))
+                        else:
+                            log(f"    ! skipped card {i}: {e}")
 
             browser.close()
     except ScrapeError:

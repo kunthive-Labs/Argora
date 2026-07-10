@@ -16,6 +16,7 @@ One job runs at a time (a scrape opens a real browser). Playwright's sync API
 runs in a worker thread, never the asyncio loop thread.
 """
 import datetime
+import itertools
 import json
 import logging
 import os
@@ -88,6 +89,18 @@ class Job:
 
 _lock = threading.Lock()
 _current = {"job": None, "last": None}
+_job_seq = itertools.count(1)   # ms timestamps alone could collide
+
+
+def _acquire_job(kind, params):
+    """Take the single job slot or 409. Returns the new Job."""
+    with _lock:
+        if _current["job"] and not _current["job"].done:
+            raise HTTPException(409, "A job is already running.")
+        job = Job(f"{int(time.time() * 1000)}-{next(_job_seq)}",
+                  kind=kind, params=params)
+        _current["job"] = job
+        return job
 
 
 def _finish_job(job):
@@ -322,10 +335,11 @@ def start_run(req: RunReq):
 
 @app.post("/api/stop")
 def stop_run():
-    job = _current["job"]
-    if job and not job.done:
-        job.stop = True
-        return {"stopping": True}
+    with _lock:
+        job = _current["job"]
+        if job and not job.done:
+            job.stop = True
+            return {"stopping": True}
     return {"stopping": False}
 
 
@@ -381,6 +395,14 @@ def _csv_rows(path):
         return list(csv.DictReader(f))
 
 
+def _leads_csv(name):
+    """Resolve a csv name under data/leads/ (basename only), 404 if missing."""
+    path = os.path.join(LEADS, os.path.basename(name))
+    if not os.path.exists(path):
+        raise HTTPException(404, "CSV not found")
+    return path
+
+
 def _competitors_for(leads_csv_name):
     """The COMPETITORS csv paired with a LEADS csv (same run). [] if missing."""
     comp = os.path.basename(leads_csv_name).replace(
@@ -410,10 +432,7 @@ def files():
 
 @app.get("/api/preview/{name}")
 def preview(name: str, limit: int = 50):
-    path = os.path.join(LEADS, os.path.basename(name))
-    if not os.path.exists(path):
-        raise HTTPException(404, "Not found")
-    rows = _csv_rows(path)
+    rows = _csv_rows(_leads_csv(name))
     limit = max(1, min(limit, 5000))  # the results browser asks for the full file
     return {"columns": list(rows[0].keys()) if rows else [],
             "rows": rows[:limit], "total": len(rows)}
@@ -431,10 +450,7 @@ def download(name: str):
 
 @app.post("/api/sql")
 def gen_sql(req: SqlReq):
-    path = os.path.join(LEADS, os.path.basename(req.csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "CSV not found")
-    rows = sql_gen.load_csv(path)
+    rows = sql_gen.load_csv(_leads_csv(req.csv))
     stem = sql_gen.stem_of(req.csv)
     dataset = req.dataset or f"argora/{stem}"
     sql, n = sql_gen.generate(rows, dataset, only_leads=not req.include_has_site)
@@ -454,9 +470,7 @@ def db_status():
 def push_db(req: PushReq):
     """Execute the generated INSERT straight against the KunthiveOS Supabase —
     the no-copy-paste path. Same idempotent SQL as /api/sql, just run for you."""
-    path = os.path.join(LEADS, os.path.basename(req.csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "CSV not found")
+    path = _leads_csv(req.csv)
     stem = sql_gen.stem_of(req.csv)
     dataset = req.dataset or f"argora/{stem}"
     try:
@@ -477,12 +491,7 @@ def start_extract(req: ExtractReq):
     if not url:
         raise HTTPException(400, "A URL is required.")
     mode = req.mode if req.mode in ("auto", "text", "screenshot", "both") else "auto"
-    with _lock:
-        if _current["job"] and not _current["job"].done:
-            raise HTTPException(409, "A job is already running.")
-        job = Job(str(int(time.time() * 1000)), kind="extract",
-                  params={"url": url, "mode": mode})
-        _current["job"] = job
+    job = _acquire_job("extract", {"url": url, "mode": mode})
     t = threading.Thread(target=run_extract_job,
                          args=(job, url, mode, req.headless), daemon=True)
     t.start()
@@ -539,10 +548,7 @@ def extract_asset(folder: str, name: str):
 def outreach_queue(req: QueueReq):
     """Build a ranked worklist: each LEAD + its best-matched COMPETITOR turned
     into ready-to-send copy for every channel, annotated with the last touch."""
-    path = os.path.join(LEADS, os.path.basename(req.csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "LEADS csv not found")
-    leads = _csv_rows(path)
+    leads = _csv_rows(_leads_csv(req.csv))
     comps = _competitors_for(req.csv)
     touched = outreach_log.touched_keys()
     stem = sql_gen.stem_of(req.csv)
@@ -612,11 +618,8 @@ def outreach_followups():
 @app.get("/api/outreach/route")
 def outreach_route(csv: str):
     """Walk-in route sheet: leads grouped by postal code (then address order)."""
-    path = os.path.join(LEADS, os.path.basename(csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "LEADS csv not found")
     groups = {}
-    for r in _csv_rows(path):
+    for r in _csv_rows(_leads_csv(csv)):
         pin = sql_gen.extract_postal(r.get("address", "")) or "—"
         groups.setdefault(pin, []).append({
             "name": r.get("name", ""), "phone": r.get("phone", ""),

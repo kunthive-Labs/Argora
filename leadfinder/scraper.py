@@ -58,6 +58,36 @@ def _strip_label(s):
     return re.sub(r"^[^:,\d+]{1,24}:\s*", "", (s or "").strip())
 
 
+# ── CAPTCHA / throttle wall ───────────────────────────────────────────────────
+# Google's rate-limit interstitial ("our systems have detected unusual traffic")
+# lives under /sorry/. We DETECT it and stop — per BARRIERS.md we never solve,
+# rotate, or otherwise evade; the only right response is to quit for the day.
+CAPTCHA_URL_MARKER = "/sorry/"
+CAPTCHA_TEXT_MARKERS = ("unusual traffic from your", "systems have detected unusual")
+CAPTCHA_STOP_MSG = ("Google throttle/CAPTCHA wall detected — this IP has been "
+                    "rate-limited. Stop scraping for the day (see BARRIERS.md §1); "
+                    "don't retry now and don't fight it.")
+
+
+def is_captcha_page(url, content=""):
+    """True if the browser landed on Google's throttle/CAPTCHA interstitial.
+    URL check first (cheap, exact); the text markers are deliberately narrow
+    phrases from the interstitial so normal Maps content can't false-positive."""
+    if CAPTCHA_URL_MARKER in (url or "").lower():
+        return True
+    c = (content or "").lower()
+    return any(m in c for m in CAPTCHA_TEXT_MARKERS)
+
+
+def _hit_captcha(page):
+    """is_captcha_page against a live page. page.content() can itself throw
+    mid-navigation — fall back to the URL-only check."""
+    try:
+        return is_captcha_page(page.url, page.content())
+    except Exception:
+        return is_captcha_page(page.url)
+
+
 # ── field-yield report ────────────────────────────────────────────────────────
 # After a scrape, how many results actually carried each field? A sudden drop
 # means the matching SEL entry went stale (Google DOM change) — the failure
@@ -98,10 +128,13 @@ def report_field_yield(results, log=print):
 
 
 class ScrapeError(Exception):
-    """Raised when scraping is interrupted but partial results are available."""
-    def __init__(self, message, results):
+    """Raised when scraping is interrupted but partial results are available.
+    `fatal=True` means the whole run should stop (CAPTCHA wall, browser gone) —
+    not just this search."""
+    def __init__(self, message, results, fatal=False):
         super().__init__(message)
         self.results = results
+        self.fatal = fatal
 
 
 def scrape(search, location, max_results=120, headless=False, pause=1.2,
@@ -122,11 +155,21 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
             page.goto(f"https://www.google.com/maps/search/{query.replace(' ', '+')}",
                       timeout=60000)
             page.wait_for_timeout(3000)
+            if _hit_captcha(page):
+                log(f"  ✗ {CAPTCHA_STOP_MSG}")
+                browser.close()
+                raise ScrapeError(CAPTCHA_STOP_MSG, results, fatal=True)
 
             # scroll the results rail until it stops growing or we hit max
             try:
                 page.wait_for_selector(SEL["results_feed"], timeout=15000)
             except Exception as e:
+                # a /sorry/ redirect is the most common cause of this timeout —
+                # tell the user it's the throttle, not a stale selector
+                if _hit_captcha(page):
+                    log(f"  ✗ {CAPTCHA_STOP_MSG}")
+                    browser.close()
+                    raise ScrapeError(CAPTCHA_STOP_MSG, results, fatal=True) from e
                 log("  ! results feed never appeared — selector may be stale "
                     "(update SEL['results_feed'])")
                 browser.close()
@@ -156,6 +199,10 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
                     break
                 try:
                     page.goto(url, timeout=30000)
+                    if is_captcha_page(page.url):
+                        log(f"  ✗ {CAPTCHA_STOP_MSG}")
+                        browser.close()
+                        raise ScrapeError(CAPTCHA_STOP_MSG, results, fatal=True)
                     page.wait_for_selector(SEL["detail_name"], timeout=10000)
                     page.wait_for_timeout(int(pause * 600))
                     rec = {
@@ -174,11 +221,21 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
                     results.append(rec)
                     log(f"    [{i}/{len(seen_links)}] {rec['name']or '(no name)'}"
                         f"{'  · NO-SITE' if not rec['website'] else ''}")
+                except ScrapeError:
+                    raise
                 except Exception as e:
-                    log(f"    ! skipped card {i}: {e}")
                     if not browser.is_connected():
                         log("    ! browser disconnected — aborting scrape loop")
-                        raise ScrapeError(f"Browser disconnected: {e}", results) from e
+                        raise ScrapeError(f"Browser disconnected: {e}",
+                                          results, fatal=True) from e
+                    # a CAPTCHA mid-run manifests as timeouts on every card —
+                    # check the page before writing this off as one flaky card
+                    if _hit_captcha(page):
+                        log(f"  ✗ {CAPTCHA_STOP_MSG}")
+                        browser.close()
+                        raise ScrapeError(CAPTCHA_STOP_MSG, results,
+                                          fatal=True) from e
+                    log(f"    ! skipped card {i}: {e}")
                     continue
 
             browser.close()

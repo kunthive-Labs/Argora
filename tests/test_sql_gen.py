@@ -99,6 +99,17 @@ def test_score_0_100():
     assert sql_gen.score_0_100("bad", "x") is None
 
 
+@pytest.mark.parametrize("csv_name,expected", [
+    ("gym-hsr-LEADS.csv", "gym-hsr"),
+    ("gym-hsr-ALL.csv", "gym-hsr-ALL"),               # only -LEADS is stripped
+    ("data/leads/gym-hsr-LEADS.csv", "gym-hsr"),
+    ("gym-hsr-RECOVERED-LEADS.csv", "gym-hsr-RECOVERED"),
+    ("plain.csv", "plain"),
+])
+def test_stem_of(csv_name, expected):
+    assert sql_gen.stem_of(csv_name) == expected
+
+
 def test_tags_from_csv():
     assert sql_gen._tags_from_csv("a;b") == ["a", "b"]
     assert sql_gen._tags_from_csv(["a", "b"]) == ["a", "b"]
@@ -160,3 +171,30 @@ def test_generate_escapes_apostrophes():
 def test_generate_dataset_lands_in_sql():
     sql, _ = sql_gen.generate([_row()], "argora/gym-jayanagar")
     assert "'argora/gym-jayanagar'" in sql
+
+
+# ── escaping hardening — a maliciously-named Maps listing must stay a literal ──
+def test_generate_never_emits_e_strings():
+    # backslashes are only safe under standard_conforming_strings when literals
+    # are plain '…' — an E'…' string would re-enable backslash escapes
+    sql, n = sql_gen.generate(
+        [_row(name=r"Back\slash 'Gym'", address=r"1 M\G Rd, B'lore 560041")],
+        "argora/test")
+    assert n == 1
+    assert "E'" not in sql
+    assert r"Back\slash ''Gym''" in sql          # backslash literal, quotes doubled
+
+
+def test_generate_injection_shaped_name_stays_one_literal():
+    sql, n = sql_gen.generate(
+        [_row(name="x'||(select 1)||'y", category="a'); DROP TABLE leads;--")],
+        "argora/test")
+    assert n == 1
+    assert "x''||(select 1)||''y" in sql          # every quote doubled → inert
+    assert "a''); DROP TABLE leads;--" in sql
+
+
+def test_generate_newline_in_value_survives():
+    sql, n = sql_gen.generate([_row(name="Two\nLines Gym")], "argora/test")
+    assert n == 1
+    assert "Two\nLines Gym" in sql                # newline stays inside the literal

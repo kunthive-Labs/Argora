@@ -68,6 +68,17 @@ def test_last_touch():
     assert outreach_log.last_touch("missing") is None
 
 
+def test_follow_ups_due_keeps_click_through_fields():
+    # the UI's oJump() needs dataset + lead_key on each due row
+    outreach_log.record({"lead_key": "argora:abc", "channel": "call",
+                         "dataset": "argora/gym-hsr",
+                         "sent_at": "2026-01-01T10:00:00",
+                         "follow_up_at": "2026-01-03T10:00:00"})
+    due = outreach_log.follow_ups_due(now="2026-01-05T00:00:00")
+    assert due[0]["dataset"] == "argora/gym-hsr"
+    assert due[0]["lead_key"] == "argora:abc"
+
+
 def test_follow_ups_due_and_cleared_by_later_touch():
     outreach_log.record({"lead_key": "a", "channel": "call",
                          "sent_at": "2026-01-01T10:00:00",

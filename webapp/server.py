@@ -16,6 +16,7 @@ One job runs at a time (a scrape opens a real browser). Playwright's sync API
 runs in a worker thread, never the asyncio loop thread.
 """
 import datetime
+import itertools
 import json
 import logging
 import os
@@ -88,6 +89,18 @@ class Job:
 
 _lock = threading.Lock()
 _current = {"job": None, "last": None}
+_job_seq = itertools.count(1)   # ms timestamps alone could collide
+
+
+def _acquire_job(kind, params):
+    """Take the single job slot or 409. Returns the new Job."""
+    with _lock:
+        if _current["job"] and not _current["job"].done:
+            raise HTTPException(409, "A job is already running.")
+        job = Job(f"{int(time.time() * 1000)}-{next(_job_seq)}",
+                  kind=kind, params=params)
+        _current["job"] = job
+        return job
 
 
 def _finish_job(job):
@@ -146,67 +159,129 @@ def _targets(sectors_sel, custom, min_reviews_override):
     return targets
 
 
-def run_job(job, sectors_sel, custom, location, max_results, headless,
-            min_reviews_override):
+# Manual-test hook: ARGORA_FAKE_SCRAPE=1 returns canned places with realistic
+# log pacing instead of driving a browser — the only way to exercise the full
+# run pipeline (SSE, area pacing, stop, CSVs, summary) without touching Google.
+def _fake_scrape(query, location, max_results, log, should_stop):
+    names = ["Sri Ganesh", "Apex", "BlueStone", "Metro",
+             "Prime", "Lotus", "Zen", "Everest"]
+    out = []
+    for i, n in enumerate(names[:max_results], 1):
+        if should_stop():
+            log("  · stop requested — finishing early")
+            break
+        time.sleep(0.2)
+        has_site = i % 3 == 0
+        rec = {"name": f"{n} {query.title()}", "rating": "4.2",
+               "reviews": str(10 * i), "category": query,
+               "website": f"https://{n.split()[0].lower()}.example" if has_site else "",
+               "phone": f"98860 000{i:02d}",
+               "address": f"{i} Main Rd, {location} 560041",
+               "mapsUrl": f"https://maps.example/{n.split()[0].lower()}"}
+        out.append(rec)
+        log(f"    [{i}/{len(names)}] {rec['name']}"
+            f"{'' if has_site else '  · NO-SITE'}")
+    return out
+
+
+def _scrape_one(job, target, location, max_results, headless):
+    """Scrape + analyze one (sector, location) target. Whatever came back is
+    always saved (interrupted runs get a -RECOVERED stem); a failed scrape adds
+    an `error` field to that target's summary row instead of killing the job.
+    Returns True only for fatal failures (CAPTCHA wall, browser gone) — those
+    set job.error and must stop the whole run."""
+    key, query, exclude, min_reviews = target
+    stem = f"{key}-{_slug(location)}"
+    raw_path = os.path.join(RAW, f"{stem}.json")
+    out_stem = os.path.join(LEADS, stem)
+
+    job.log(f"▶ {query} in {location} (max {max_results}, ≥{min_reviews}★rev)")
+
+    records, scrape_err, fatal = [], None, False
     try:
-        for key, query, exclude, min_reviews in _targets(
-                sectors_sel, custom, min_reviews_override):
+        if os.environ.get("ARGORA_FAKE_SCRAPE"):
+            records = _fake_scrape(query, location, max_results,
+                                   job.log, lambda: job.stop)
+        else:
+            records = scraper.scrape(
+                query, location, max_results, headless,
+                log=job.log, should_stop=lambda: job.stop)
+    except scraper.ScrapeError as e:
+        records, scrape_err, fatal = e.results, e, e.fatal
+        job.log(f"  ! scraping interrupted: {e}")
+        scraper.report_field_yield(records, job.log)
+    except Exception as e:
+        scrape_err = e
+        job.log(f"  ! unexpected scraper failure: {e}")
+
+    s = {"sector": key, "location": location,
+         "scraped": 0, "leads": 0, "competitors": 0, "top": "—", "stem": ""}
+    if records:
+        # Always save whatever raw records we got
+        with open(raw_path, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2, ensure_ascii=False)
+        job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
+
+        allrec, leads, comps = analyze.analyze(records, exclude, min_reviews)
+
+        # If it was an error/interrupted run, mark files as recovered
+        suffix = "-RECOVERED" if (scrape_err or job.stop) else ""
+        analyze.write_csv(f"{out_stem}{suffix}-ALL.csv", allrec)
+        analyze.write_csv(f"{out_stem}{suffix}-LEADS.csv", leads)
+        analyze.write_csv(f"{out_stem}{suffix}-COMPETITORS.csv", comps)
+
+        s.update(scraped=len(allrec), leads=len(leads), competitors=len(comps),
+                 top=(leads[0]["name"] + f" ({leads[0]['reviews']}★rev)") if leads else "—",
+                 stem=stem + suffix)
+        job.log(f"  ✓ {len(leads)} leads · {len(comps)} competitors · "
+                f"{len(allrec)} total → data/leads/{stem}{suffix}-LEADS.csv\n")
+    else:
+        job.log("  ! no records collected to analyze.")
+
+    if scrape_err:
+        s["error"] = str(scrape_err)
+    if records or scrape_err:       # a clean-but-empty search adds no row
+        job.summary.append(s)
+        job.emit("summary", **s)
+
+    if fatal:
+        job.error = str(scrape_err)
+        job.log(f"✗ error: {scrape_err}")
+        job.emit("error", message=str(scrape_err))
+    return fatal
+
+
+def _area_rest(job, seconds):
+    """Pause between area scrapes (BARRIERS.md pacing), abortable each second."""
+    job.log(f"  … resting {seconds}s before the next area (pacing — BARRIERS.md)")
+    for _ in range(seconds):
+        if job.stop:
+            return
+        time.sleep(1)
+
+
+def run_job(job, sectors_sel, custom, locations, max_results, headless,
+            min_reviews_override, area_pause=180):
+    """Scrape every (sector × area) pair, one at a time, resting between areas.
+    A failed target records its error on its summary row and the run continues;
+    only fatal failures (CAPTCHA wall, browser gone) stop the whole job."""
+    try:
+        targets = _targets(sectors_sel, custom, min_reviews_override)
+        for ai, location in enumerate(locations, 1):
             if job.stop:
                 break
-            name = key
-            stem = f"{name}-{_slug(location)}"
-            raw_path = os.path.join(RAW, f"{stem}.json")
-            out_stem = os.path.join(LEADS, stem)
-
-            job.emit("phase", sector=name, label=f"{name} @ {location}")
-            job.log(f"▶ {query} in {location} (max {max_results}, ≥{min_reviews}★rev)")
-
-            records = []
-            scrape_err = None
-            try:
-                records = scraper.scrape(
-                    query, location, max_results, headless,
-                    log=job.log, should_stop=lambda: job.stop)
-            except scraper.ScrapeError as e:
-                records = e.results
-                scrape_err = e
-                job.log(f"  ! scraping interrupted: {e}")
-                scraper.report_field_yield(records, job.log)
-            except Exception as e:
-                scrape_err = e
-                job.log(f"  ! unexpected scraper failure: {e}")
-
-            if records:
-                # Always save whatever raw records we got
-                with open(raw_path, "w", encoding="utf-8") as f:
-                    json.dump(records, f, indent=2, ensure_ascii=False)
-                job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
-
-                # Run analysis on the partial records
-                allrec, leads, comps = analyze.analyze(
-                    records, exclude, min_reviews)
-                
-                # If it was an error/interrupted run, mark files as recovered
-                suffix = "-RECOVERED" if (scrape_err or job.stop) else ""
-                analyze.write_csv(f"{out_stem}{suffix}-ALL.csv", allrec)
-                analyze.write_csv(f"{out_stem}{suffix}-LEADS.csv", leads)
-                analyze.write_csv(f"{out_stem}{suffix}-COMPETITORS.csv", comps)
-
-                s = {"sector": name, "location": location,
-                     "scraped": len(allrec), "leads": len(leads),
-                     "competitors": len(comps),
-                     "top": (leads[0]["name"] + f" ({leads[0]['reviews']}★rev)") if leads else "—",
-                     "stem": stem + suffix}
-                job.summary.append(s)
-                job.emit("summary", **s)
-                job.log(f"  ✓ {len(leads)} leads · {len(comps)} competitors · "
-                        f"{len(allrec)} total → data/leads/{stem}{suffix}-LEADS.csv\n")
-            else:
-                job.log("  ! no records collected to analyze.")
-
-            if scrape_err:
-                raise scrape_err
-    except Exception as e:  # surface, don't crash the server
+            if ai > 1:
+                _area_rest(job, area_pause)
+                if job.stop:
+                    break
+            for target in targets:
+                if job.stop:
+                    break
+                job.emit("phase", sector=target[0], area=ai, areas=len(locations),
+                         label=f"area {ai}/{len(locations)} · {target[0]} @ {location}")
+                if _scrape_one(job, target, location, max_results, headless):
+                    return          # fatal — job.error is set; finally still runs
+    except Exception as e:  # defensive: surface, don't crash the server
         job.error = str(e)
         job.log(f"✗ error: {e}")
         job.emit("error", message=str(e))
@@ -240,10 +315,17 @@ def run_extract_job(job, url, mode, headless):
 class RunReq(BaseModel):
     sectors: list[str] = []
     custom: list[str] = []          # free-text business types, scraped as-is
-    location: str
+    location: str = ""              # legacy single-area callers (KunthiveOS)
+    locations: list[str] = []       # batch: areas scraped in order, paced
     max: int = 120
     headless: bool = False
     min_reviews: int | None = None  # override the review floor for every target
+    area_pause: int = 180           # seconds of rest between areas (BARRIERS pacing)
+
+
+def _locations_of(req):
+    """The batch `locations` list, falling back to the legacy `location`."""
+    return [l.strip() for l in (req.locations or [req.location]) if l.strip()]
 
 
 class SqlReq(BaseModel):
@@ -300,32 +382,31 @@ def list_sectors():
 
 @app.post("/api/run")
 def start_run(req: RunReq):
-    with _lock:
-        if _current["job"] and not _current["job"].done:
-            raise HTTPException(409, "A job is already running.")
-        custom = [c.strip() for c in req.custom if c.strip()]
-        if not req.sectors and not custom:
-            raise HTTPException(400, "Pick a preset or add a custom category.")
-        if not req.location.strip():
-            raise HTTPException(400, "Location is required.")
-        job = Job(str(int(time.time() * 1000)), kind="scrape",
-                  params={"sectors": req.sectors, "custom": custom,
-                          "location": req.location.strip(), "max": req.max})
-        _current["job"] = job
+    custom = [c.strip() for c in req.custom if c.strip()]
+    if not req.sectors and not custom:
+        raise HTTPException(400, "Pick a preset or add a custom category.")
+    locations = _locations_of(req)
+    if not locations:
+        raise HTTPException(400, "At least one locality is required.")
+    area_pause = max(30, min(req.area_pause, 3600))
+    job = _acquire_job("scrape", {"sectors": req.sectors, "custom": custom,
+                                  "locations": locations, "max": req.max,
+                                  "area_pause": area_pause})
     mr = None if req.min_reviews is None else max(0, req.min_reviews)
     t = threading.Thread(target=run_job, args=(
-        job, req.sectors, custom, req.location.strip(),
-        max(1, min(req.max, 120)), req.headless, mr), daemon=True)
+        job, req.sectors, custom, locations,
+        max(1, min(req.max, 120)), req.headless, mr, area_pause), daemon=True)
     t.start()
     return {"job_id": job.id}
 
 
 @app.post("/api/stop")
 def stop_run():
-    job = _current["job"]
-    if job and not job.done:
-        job.stop = True
-        return {"stopping": True}
+    with _lock:
+        job = _current["job"]
+        if job and not job.done:
+            job.stop = True
+            return {"stopping": True}
     return {"stopping": False}
 
 
@@ -381,6 +462,14 @@ def _csv_rows(path):
         return list(csv.DictReader(f))
 
 
+def _leads_csv(name):
+    """Resolve a csv name under data/leads/ (basename only), 404 if missing."""
+    path = os.path.join(LEADS, os.path.basename(name))
+    if not os.path.exists(path):
+        raise HTTPException(404, "CSV not found")
+    return path
+
+
 def _competitors_for(leads_csv_name):
     """The COMPETITORS csv paired with a LEADS csv (same run). [] if missing."""
     comp = os.path.basename(leads_csv_name).replace(
@@ -410,10 +499,7 @@ def files():
 
 @app.get("/api/preview/{name}")
 def preview(name: str, limit: int = 50):
-    path = os.path.join(LEADS, os.path.basename(name))
-    if not os.path.exists(path):
-        raise HTTPException(404, "Not found")
-    rows = _csv_rows(path)
+    rows = _csv_rows(_leads_csv(name))
     limit = max(1, min(limit, 5000))  # the results browser asks for the full file
     return {"columns": list(rows[0].keys()) if rows else [],
             "rows": rows[:limit], "total": len(rows)}
@@ -431,11 +517,8 @@ def download(name: str):
 
 @app.post("/api/sql")
 def gen_sql(req: SqlReq):
-    path = os.path.join(LEADS, os.path.basename(req.csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "CSV not found")
-    rows = sql_gen.load_csv(path)
-    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    rows = sql_gen.load_csv(_leads_csv(req.csv))
+    stem = sql_gen.stem_of(req.csv)
     dataset = req.dataset or f"argora/{stem}"
     sql, n = sql_gen.generate(rows, dataset, only_leads=not req.include_has_site)
     out_name = stem + ".sql"
@@ -454,10 +537,8 @@ def db_status():
 def push_db(req: PushReq):
     """Execute the generated INSERT straight against the KunthiveOS Supabase —
     the no-copy-paste path. Same idempotent SQL as /api/sql, just run for you."""
-    path = os.path.join(LEADS, os.path.basename(req.csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "CSV not found")
-    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    path = _leads_csv(req.csv)
+    stem = sql_gen.stem_of(req.csv)
     dataset = req.dataset or f"argora/{stem}"
     try:
         result = db.push_csv(path, dataset, only_leads=not req.include_has_site)
@@ -477,12 +558,7 @@ def start_extract(req: ExtractReq):
     if not url:
         raise HTTPException(400, "A URL is required.")
     mode = req.mode if req.mode in ("auto", "text", "screenshot", "both") else "auto"
-    with _lock:
-        if _current["job"] and not _current["job"].done:
-            raise HTTPException(409, "A job is already running.")
-        job = Job(str(int(time.time() * 1000)), kind="extract",
-                  params={"url": url, "mode": mode})
-        _current["job"] = job
+    job = _acquire_job("extract", {"url": url, "mode": mode})
     t = threading.Thread(target=run_extract_job,
                          args=(job, url, mode, req.headless), daemon=True)
     t.start()
@@ -539,13 +615,10 @@ def extract_asset(folder: str, name: str):
 def outreach_queue(req: QueueReq):
     """Build a ranked worklist: each LEAD + its best-matched COMPETITOR turned
     into ready-to-send copy for every channel, annotated with the last touch."""
-    path = os.path.join(LEADS, os.path.basename(req.csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "LEADS csv not found")
-    leads = _csv_rows(path)
+    leads = _csv_rows(_leads_csv(req.csv))
     comps = _competitors_for(req.csv)
     touched = outreach_log.touched_keys()
-    stem = os.path.basename(req.csv).replace("-LEADS.csv", "").replace(".csv", "")
+    stem = sql_gen.stem_of(req.csv)
     sector = stem.split("-")[0]
 
     out = []
@@ -612,11 +685,8 @@ def outreach_followups():
 @app.get("/api/outreach/route")
 def outreach_route(csv: str):
     """Walk-in route sheet: leads grouped by postal code (then address order)."""
-    path = os.path.join(LEADS, os.path.basename(csv))
-    if not os.path.exists(path):
-        raise HTTPException(404, "LEADS csv not found")
     groups = {}
-    for r in _csv_rows(path):
+    for r in _csv_rows(_leads_csv(csv)):
         pin = sql_gen.extract_postal(r.get("address", "")) or "—"
         groups.setdefault(pin, []).append({
             "name": r.get("name", ""), "phone": r.get("phone", ""),

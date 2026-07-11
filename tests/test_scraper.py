@@ -22,6 +22,31 @@ def test_strip_label(raw, expected):
     assert scraper._strip_label(raw) == expected
 
 
+# ── is_captcha_page ──────────────────────────────────────────────────────────
+# The retry loop and live-page checks in scrape() need a browser and are left
+# untested here on purpose — this file covers pure parts only.
+@pytest.mark.parametrize("url,content,expected", [
+    ("https://www.google.com/sorry/index?continue=x", "", True),
+    ("https://www.google.com/SORRY/index", "", True),                 # case-insensitive
+    ("https://maps.google.com/maps/place/x", "", False),
+    ("", "Our systems have detected unusual traffic from your computer network", True),
+    ("", "We noticed UNUSUAL TRAFFIC FROM YOUR network", True),
+    ("https://maps.google.com/maps/place/x",
+     "Sorry Fried Chicken · 4.5 stars · unusually good traffic", False),
+    ("", "", False),
+    (None, None, False),
+])
+def test_is_captcha_page(url, content, expected):
+    assert scraper.is_captcha_page(url, content) is expected
+
+
+def test_scrape_error_carries_results_and_fatal_flag():
+    e = scraper.ScrapeError("boom", [{"name": "A"}])
+    assert e.results == [{"name": "A"}]
+    assert e.fatal is False                       # default: this search only
+    assert scraper.ScrapeError("wall", [], fatal=True).fatal is True
+
+
 # ── field_yield ──────────────────────────────────────────────────────────────
 def _place(**kw):
     rec = {"name": "Acme", "rating": "4.2", "reviews": "25", "category": "Gym",

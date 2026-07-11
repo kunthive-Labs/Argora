@@ -46,15 +46,6 @@ FIELD_ALIASES = {
     "maps_url":    ["mapsUrl", "googleMapsUrl", "link", "url_maps", "placeUrl"],
 }
 
-# A "website" that is really just a social / builder page = still a lead.
-SOCIAL_HOSTS = (
-    "facebook.com", "fb.com", "instagram.com", "instagr.am", "twitter.com",
-    "x.com", "linkedin.com", "youtube.com", "wa.me", "whatsapp.com",
-    "linktr.ee", "justdial.com", "indiamart.com", "sulekha.com",
-    "google.com", "g.page", "business.site",  # google business builder pages
-)
-
-
 def _first(d, keys):
     for k in keys:
         if k in d and d[k] not in (None, ""):

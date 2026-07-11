@@ -171,6 +171,12 @@
   .ledgerlog .post{animation:settle .35s ease-out}
   @keyframes settle{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 
+  .duebadge{font:600 11px var(--mono);color:#fff;background:var(--bad);
+    border-radius:9px;padding:2px 8px;margin-left:8px}
+  .ocard.flash{outline:2px solid var(--gilt);outline-offset:2px}
+  .duegroup{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--gilt-dk);margin:8px 0 2px}
+  .duegroup.over{color:var(--bad)}
   .nib{display:inline-block;width:11px;height:11px;border-radius:50%;
     background:var(--ink-faint);box-shadow:inset 0 0 0 2px rgba(0,0,0,.15)}
   .nib.run{background:var(--warn);animation:pulse 1s infinite}
@@ -331,6 +337,8 @@
   <p class="notice">⚠ Keep runs modest &amp; headed. Don't re-scrape the same area, don't add
     CAPTCHA/proxy evasion, don't commit scraped data. Consult <b>BARRIERS.md</b> before scaling.</p>
 
+  <p class="notice" id="fuBanner" hidden style="cursor:pointer"></p>
+
   <!-- 1 · OPEN AN ENTRY -->
   <section class="sheet">
     <div class="head"><span class="fol">fol. 1</span><h2>Open an entry</h2>
@@ -346,8 +354,9 @@
 
     <div class="row" style="margin-top:20px">
       <div style="flex:2">
-        <label>Locality <span class="lc">— canvass area by area; Google caps ~120 a search</span></label>
-        <input type="text" id="loc" placeholder="e.g. Jayanagar, Bengaluru" autocomplete="off">
+        <label>Localities <span class="lc">— one per line, canvassed in order with a rest between; Google caps ~120 a search</span></label>
+        <textarea id="locs" rows="3" style="min-height:0;resize:vertical"
+          placeholder="Jayanagar, Bengaluru&#10;HSR Layout, Bengaluru"></textarea>
       </div>
       <div style="flex:0 0 120px">
         <label>Max / search</label>
@@ -361,6 +370,10 @@
         <div style="flex:0 0 210px">
           <label>Min reviews floor <span class="lc">(blank = preset)</span></label>
           <input type="number" id="minrev" placeholder="preset default" min="0">
+        </div>
+        <div style="flex:0 0 210px">
+          <label>Rest between areas <span class="lc">(seconds)</span></label>
+          <input type="number" id="areapause" value="180" min="30" max="3600">
         </div>
         <div style="flex:1;display:flex;align-items:flex-end">
           <label class="check" style="margin-bottom:9px"><input type="checkbox" id="headless"> run headless <span class="lc">&nbsp;(higher throttle risk)</span></label>
@@ -494,8 +507,8 @@
   </section>
 
   <!-- 6 · OUTREACH STUDIO -->
-  <section class="sheet">
-    <div class="head"><span class="fol">fol. 6</span><h2>Outreach studio</h2>
+  <section class="sheet" id="folio-outreach">
+    <div class="head"><span class="fol">fol. 6</span><h2>Outreach studio</h2><span class="duebadge" id="oDueCount" hidden></span>
       <span class="desc">turn each lead into a ready-to-send pitch — then log the touch</span>
       <span class="right"><span class="seal" id="odbpill"><span class="wax"></span><span id="odbtext">local only</span></span></span></div>
 
@@ -603,10 +616,14 @@ function renderStats(){
   const box=$('#stats'); if(!window._sum||!window._sum.length){box.hidden=true;return;}
   box.hidden=false;
   const t=window._sum.reduce((a,s)=>({l:a.l+s.leads,c:a.c+s.competitors,n:a.n+s.scraped}),{l:0,c:0,n:0});
+  const areas=new Set(window._sum.map(s=>s.location)).size;
+  const errs=window._sum.filter(s=>s.error).length;
   box.innerHTML=`<div class="bcell"><b>${t.l}</b><span>leads</span></div>
     <div class="bcell"><b>${t.c}</b><span>competitors</span></div>
     <div class="bcell"><b>${t.n}</b><span>canvassed</span></div>
-    <div class="bcell"><b>${window._sum.length}</b><span>trades</span></div>`;
+    <div class="bcell"><b>${window._sum.length}</b><span>entries</span></div>
+    <div class="bcell"><b>${areas}</b><span>areas</span></div>`
+    +(errs?`<div class="bcell"><b style="color:var(--bad)">${errs}</b><span>errors</span></div>`:'');
 }
 function setRunning(on){
   $('#go').disabled=on; $('#stop').style.display=on?'inline-block':'none';
@@ -617,7 +634,8 @@ $('#go').onclick=async()=>{
   const terms = val.split(',').map(s => s.trim()).filter(Boolean);
   
   if(!terms.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Choose a trade or write one in.';return;}
-  if(!$('#loc').value.trim()){$('#runhint').className='runhint msg err';$('#runhint').textContent='Name a locality.';return;}
+  const locations=$('#locs').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!locations.length){$('#runhint').className='runhint msg err';$('#runhint').textContent='Name at least one locality.';return;}
   
   const selectedSectors = [];
   const customSectors = [];
@@ -635,7 +653,8 @@ $('#go').onclick=async()=>{
   const mr=$('#minrev').value.trim();
   try{
     const {job_id}=await api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sectors:selectedSectors,custom:customSectors,location:$('#loc').value,
+      body:JSON.stringify({sectors:selectedSectors,custom:customSectors,locations,
+        area_pause:+$('#areapause').value||180,
         max:+$('#max').value,headless:$('#headless').checked,min_reviews:mr===''?null:+mr})});
     es=new EventSource('/api/stream/'+job_id);
     es.onmessage=e=>{
@@ -977,17 +996,49 @@ async function loadOutreach(){
   try{
     const d=await api('/api/outreach/queue',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({csv,only_untouched:$('#oUntouched').checked,sender:senderObj(),limit:300})});
-    window._oLeads=d.leads; renderOutreach(); loadRoute();
+    window._oLeads=d.leads; renderOutreach(); loadRoute(); loadFollowups();
   }catch(err){$('#oList').innerHTML='<div class="empty">✗ '+esc(err)+'</div>';}
 }
 async function loadFollowups(){
   let d; try{d=await api('/api/outreach/followups');}catch(e){return;}
-  const box=$('#oDue');
-  box.innerHTML=d.due.length?d.due.map(t=>`<div class="filerow">
+  const box=$('#oDue'), today=new Date().toISOString().slice(0,10);
+  const overdue=d.due.filter(t=>(t.follow_up_at||'').slice(0,10)<today);
+  const dueToday=d.due.filter(t=>(t.follow_up_at||'').slice(0,10)>=today);
+  const row=t=>`<div class="filerow" style="cursor:pointer"
+      onclick="oJump('${esc(t.dataset||'')}','${esc(t.lead_key||'')}')">
     <span class="fn" title="${esc(t.notes||'')}">${esc(t.name)}</span>
-    <span class="cnt">${esc((t.follow_up_at||'').slice(0,10))} · ${esc(t.channel)}</span></div>`).join('')
+    <span class="cnt">${esc((t.follow_up_at||'').slice(0,10))} · ${esc(t.channel)}</span></div>`;
+  box.innerHTML=d.due.length
+    ?(overdue.length?`<div class="duegroup over">Overdue</div>`+overdue.map(row).join(''):'')
+     +(dueToday.length?`<div class="duegroup">Today</div>`+dueToday.map(row).join(''):'')
     :'<div class="empty">none due</div>';
+  const badge=$('#oDueCount');
+  badge.hidden=!d.due.length; badge.textContent=d.due.length+' due';
+  const ban=$('#fuBanner');
+  ban.hidden=!d.due.length;
+  if(d.due.length){
+    ban.innerHTML=`⏰ <b>${d.due.length}</b> follow-up${d.due.length===1?'':'s'} due`
+      +(overdue.length?` — <b>${overdue.length}</b> overdue`:'')
+      +` · click to open the outreach desk`;
+    ban.onclick=()=>$('#folio-outreach').scrollIntoView({behavior:'smooth'});
+  }
 }
+window.oJump=async(dataset,leadKey)=>{
+  $('#folio-outreach').scrollIntoView({behavior:'smooth'});
+  const stem=(dataset||'').split('/')[1]||'', csv=stem+'-LEADS.csv';
+  const sel=$('#oCsv');
+  if(!stem||![...sel.options].some(o=>o.value===csv))return;   // book gone — just land on fol. 6
+  sel.value=csv;
+  $('#oUntouched').checked=false;   // due leads are by definition touched — keep them visible
+  await loadOutreach();
+  const i=(window._oLeads||[]).findIndex(l=>l.lead_key===leadKey);
+  if(i<0)return;
+  const card=$('#ocard'+i);
+  if(!card)return;
+  card.scrollIntoView({behavior:'smooth',block:'center'});
+  card.classList.add('flash');
+  setTimeout(()=>card.classList.remove('flash'),2500);
+};
 async function loadRoute(){
   const csv=$('#oCsv').value;
   if(!csv){$('#oRoute').innerHTML='<div class="empty">— open a book —</div>';return;}

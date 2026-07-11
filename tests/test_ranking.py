@@ -133,6 +133,58 @@ def test_score_clamped_to_100():
     assert res["score"] == 100
 
 
+# ── input hardening — CSV strings, None, and junk must degrade, never raise ──
+def test_rank_accepts_string_numbers():
+    canonical = ranking.rank(name="X", phone="98860", rating=4.2, reviews=1234)
+    stringy = ranking.rank(name="X", phone="98860", rating="4.2", reviews="1,234")
+    assert stringy == canonical
+
+
+def test_rank_junk_inputs_degrade_to_neutral():
+    res = ranking.rank(name=None, phone=None, website=123, category=None,
+                       postal=None, rating="unrated", reviews="n/a")
+    assert 0 <= res["score"] <= 100
+    assert res["web_status"] == "none"        # 123 has no domain-looking thing
+    assert res["breakdown"]["C"] == 6         # junk rating → neutral 'new'
+    assert res["breakdown"]["B"] == 0         # junk reviews → 0
+
+
+@pytest.mark.parametrize("v,expected", [
+    (4.2, 4.2), ("4.2", 4.2), (0, 0.0),       # 0 stays 0 — _rating_trust treats it as 'new'
+    (None, None), ("", None), ("junk", None), (float("nan"), None),
+])
+def test_coerce_rating(v, expected):
+    assert ranking.coerce_rating(v) == expected
+
+
+@pytest.mark.parametrize("v,expected", [
+    (25, 25), ("25", 25), ("1,234", 1234), ("25★rev", 25),
+    (-3, 0), (None, 0), ("", 0), ("junk", 0), (float("nan"), 0),
+])
+def test_coerce_reviews(v, expected):
+    assert ranking.coerce_reviews(v) == expected
+
+
+def test_score_bounds_hold_across_input_sweep():
+    for reviews in (0, 5, 50, 500, "1,000", None, "junk"):
+        for rating in (None, 0, 1.0, 3.2, "4.8", 5.0, "junk"):
+            for website in ("", "facebook.com/x", "https://acme.com"):
+                for phone in ("", "98860 11111"):
+                    res = ranking.rank(name="X", phone=phone, website=website,
+                                       rating=rating, reviews=reviews)
+                    assert 0 <= res["score"] <= 100
+                    assert res["tier"] == ranking.tier_for(res["score"])
+
+
+def test_sort_key_tolerates_csv_string_records():
+    csvish = {"score": "83", "reviews": "1,234", "rating": "4.5",
+              "web_status": "none", "phone": "98860", "rank_tags": ""}
+    low = {"score": 12, "reviews": 3, "rating": None,
+           "web_status": "real", "phone": "", "rank_tags": []}
+    ordered = sorted([low, csvish], key=ranking.sort_key, reverse=True)
+    assert ordered[0] is csvish               # string numerics compare correctly
+
+
 # ── tie-breaking ─────────────────────────────────────────────────────────────
 def test_duplicates_sink_regardless_of_score():
     dup = {"score": 90, "reviews": 500, "rating": 4.9, "web_status": "none",

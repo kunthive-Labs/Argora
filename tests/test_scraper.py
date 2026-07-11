@@ -2,9 +2,36 @@
 
 Never calls scrape(): these run without Playwright or a network.
 """
+import json
+import os
+
 import pytest
 
 from leadfinder import scraper
+
+
+# ── save_json (the checkpoint writer) ────────────────────────────────────────
+def test_save_json_atomic_write(tmp_path):
+    path = str(tmp_path / "raw.json")
+    scraper.save_json(path, [{"name": "A"}])
+    scraper.save_json(path, [{"name": "A"}, {"name": "B"}])   # replaces cleanly
+    with open(path, encoding="utf-8") as f:
+        assert len(json.load(f)) == 2
+    assert not os.path.exists(path + ".tmp")                  # no droppings
+
+
+def test_cli_main_saves_partials_on_scrape_error(tmp_path, monkeypatch, capsys):
+    out = str(tmp_path / "out.json")
+
+    def fake_scrape(*a, **kw):
+        raise scraper.ScrapeError("wall", [{"name": "Partial"}], fatal=True)
+
+    monkeypatch.setattr(scraper, "scrape", fake_scrape)
+    with pytest.raises(SystemExit):
+        scraper.main(["gym", "HSR", "--out", out])
+    with open(out, encoding="utf-8") as f:
+        assert json.load(f) == [{"name": "Partial"}]
+    assert "interrupted" in capsys.readouterr().out
 
 
 # ── _strip_label ─────────────────────────────────────────────────────────────

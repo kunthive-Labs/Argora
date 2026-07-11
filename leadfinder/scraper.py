@@ -23,6 +23,7 @@ Usage:
 """
 import argparse
 import json
+import os
 import re
 import time
 
@@ -88,6 +89,15 @@ def _hit_captcha(page):
         return is_captcha_page(page.url)
 
 
+def save_json(path, records):
+    """Atomic JSON write (tmp + os.replace) — a kill mid-write can never leave
+    a truncated/corrupt file behind. Used for the per-place checkpoints."""
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
 # ── field-yield report ────────────────────────────────────────────────────────
 # After a scrape, how many results actually carried each field? A sudden drop
 # means the matching SEL entry went stale (Google DOM change) — the failure
@@ -138,10 +148,12 @@ class ScrapeError(Exception):
 
 
 def scrape(search, location, max_results=120, headless=False, pause=1.2,
-           log=print, should_stop=None):
+           log=print, should_stop=None, checkpoint=None):
     """Scrape places. `log` receives progress strings (the web UI passes a
     callback that streams them live). `should_stop` is an optional callable
-    returning True to abort gracefully mid-run."""
+    returning True to abort gracefully mid-run. `checkpoint`, if given, is
+    called with the results list after every extracted place — write-through
+    durability, so even a crash or kill loses at most the card in flight."""
     from playwright.sync_api import sync_playwright
 
     query = f"{search} in {location}"
@@ -220,6 +232,11 @@ def scrape(search, location, max_results=120, headless=False, pause=1.2,
                             "mapsUrl": url,
                         }
                         results.append(rec)
+                        if checkpoint:
+                            try:
+                                checkpoint(results)
+                            except Exception as ce:   # durability must never kill the scrape
+                                log(f"    ! checkpoint failed: {ce}")
                         log(f"    [{i}/{len(seen_links)}] {rec['name']or '(no name)'}"
                             f"{'  · NO-SITE' if not rec['website'] else ''}")
                         break
@@ -265,10 +282,18 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     print(f"Scraping '{args.search}' in '{args.location}' (max {args.max})…")
-    records = scrape(args.search, args.location, args.max, args.headless)
+    try:
+        records = scrape(args.search, args.location, args.max, args.headless,
+                         checkpoint=lambda recs: save_json(args.out, recs))
+    except ScrapeError as e:
+        # partials are already on disk via the checkpoint; save again to be sure
+        if e.results:
+            save_json(args.out, e.results)
+        print(f"! scraping interrupted: {e}")
+        print(f"Saved {len(e.results)} partial places → {args.out}")
+        raise SystemExit(1)
 
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(records, f, indent=2, ensure_ascii=False)
+    save_json(args.out, records)
     print(f"Saved {len(records)} places → {args.out}")
     print(f"Next: python -m leadfinder.analyze {args.out} --out data/leads/<stem> --sector <name>")
 

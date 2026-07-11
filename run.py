@@ -36,7 +36,10 @@ def main():
     records = []
     scrape_err = None
     try:
-        records = scraper.scrape(s["query"], args.location, args.max, args.headless)
+        # write-through checkpoint: every extracted place lands on disk at once,
+        # so a crash/kill/CAPTCHA loses at most the card in flight
+        records = scraper.scrape(s["query"], args.location, args.max, args.headless,
+                                 checkpoint=lambda recs: scraper.save_json(raw_path, recs))
     except scraper.ScrapeError as e:
         records = e.results
         scrape_err = e
@@ -47,8 +50,7 @@ def main():
         print(f"  ! scraping encountered unexpected error: {e}")
 
     if records:
-        with open(raw_path, "w", encoding="utf-8") as f:
-            json.dump(records, f, indent=2, ensure_ascii=False)
+        scraper.save_json(raw_path, records)
         print(f"raw → {raw_path}")
 
         suffix = "-RECOVERED" if scrape_err else ""

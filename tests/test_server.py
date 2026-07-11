@@ -188,6 +188,49 @@ def test_fake_scrape_hook_bypasses_real_scraper(sandbox, monkeypatch):
     assert job.summary[0]["leads"] > 0            # canned mix includes NO-SITE rows
 
 
+# ── crash durability ─────────────────────────────────────────────────────────
+def test_checkpoint_preserves_records_lost_to_a_crash(sandbox, monkeypatch):
+    """A scraper death that carries NO results (simulating a process crash or a
+    bug that loses the in-memory list) must still leave the checkpointed places
+    on disk in data/raw."""
+    def fake_scrape(query, *a, checkpoint=None, **kw):
+        checkpoint([_rec()])                       # one place made it to disk…
+        checkpoint([_rec(), _rec(name="Second")])  # …then a second
+        raise RuntimeError("hard crash — results never returned")
+
+    monkeypatch.setattr(server.scraper, "scrape", fake_scrape)
+    job = _job()
+    server.run_job(job, [], ["gyms"], ["HSR"], 10, True, None, 30)
+
+    raw = os.path.join(server.RAW, "gyms-hsr.json")
+    with open(raw, encoding="utf-8") as f:
+        assert len(json.load(f)) == 2              # checkpoints survived the crash
+    assert job.summary[0]["error"]                 # and the failure is recorded
+
+
+def test_last_job_checkpointed_between_targets(sandbox, monkeypatch):
+    """After each finished target the job state must already be on disk, so a
+    killed server still shows the progress made."""
+    seen = {}
+
+    def fake_scrape(query, *a, **kw):
+        if query == "b":                           # by target 2, target 1 persisted?
+            with open(server.LAST_JOB, encoding="utf-8") as f:
+                seen.update(json.load(f))
+        return [_rec()]
+
+    monkeypatch.setattr(server.scraper, "scrape", fake_scrape)
+    job = _job()
+    server.run_job(job, [], ["a", "b"], ["HSR"], 10, True, None, 30)
+
+    assert seen["in_progress"] is True
+    assert [s["sector"] for s in seen["summary"]] == ["a"]
+    with open(server.LAST_JOB, encoding="utf-8") as f:
+        final = json.load(f)
+    assert final["in_progress"] is False           # _finish_job wrote the real one
+    assert len(final["summary"]) == 2
+
+
 # ── the single job slot ──────────────────────────────────────────────────────
 def test_acquire_job_409_while_running(sandbox):
     first = server._acquire_job("scrape", {})

@@ -103,15 +103,28 @@ def _acquire_job(kind, params):
         return job
 
 
-def _finish_job(job):
-    """Persist the finished job (data/last_job.json, atomic write) so the UI
-    can show the last run after the SSE stream closes or the server restarts,
-    then free the single job slot."""
-    payload = {
+def _atomic_json(path, payload):
+    """Atomic JSON write (tmp + os.replace) — a kill mid-write can never leave
+    a truncated/corrupt file behind."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path),
+                               prefix=".tmp-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _job_payload(job, in_progress):
+    return {
         "job_id": job.id,
         "kind": job.kind,
         "started_at": job.started_at,
-        "finished_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "finished_at": (None if in_progress else
+                        datetime.datetime.now().isoformat(timespec="seconds")),
+        "in_progress": in_progress,
         "ok": job.error is None,
         "stopped": job.stop,
         "error": job.error,
@@ -119,16 +132,23 @@ def _finish_job(job):
         "summary": job.summary,
         "log": job.lines,
     }
+
+
+def _checkpoint_job(job):
+    """Persist mid-run progress after each finished target, so even a killed
+    server process leaves data/last_job.json describing what was done."""
     try:
-        fd, tmp = tempfile.mkstemp(dir=os.path.dirname(LAST_JOB),
-                                   prefix=".job-", suffix=".json")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, LAST_JOB)
-        finally:
-            if os.path.exists(tmp):
-                os.remove(tmp)
+        _atomic_json(LAST_JOB, _job_payload(job, in_progress=True))
+    except Exception as e:
+        _log.warning("could not checkpoint %s: %s", LAST_JOB, e)
+
+
+def _finish_job(job):
+    """Persist the finished job (data/last_job.json, atomic write) so the UI
+    can show the last run after the SSE stream closes or the server restarts,
+    then free the single job slot."""
+    try:
+        _atomic_json(LAST_JOB, _job_payload(job, in_progress=False))
     except Exception as e:
         _log.warning("could not persist %s: %s", LAST_JOB, e)
     with _lock:
@@ -162,7 +182,7 @@ def _targets(sectors_sel, custom, min_reviews_override):
 # Manual-test hook: ARGORA_FAKE_SCRAPE=1 returns canned places with realistic
 # log pacing instead of driving a browser — the only way to exercise the full
 # run pipeline (SSE, area pacing, stop, CSVs, summary) without touching Google.
-def _fake_scrape(query, location, max_results, log, should_stop):
+def _fake_scrape(query, location, max_results, log, should_stop, checkpoint=None):
     names = ["Sri Ganesh", "Apex", "BlueStone", "Metro",
              "Prime", "Lotus", "Zen", "Everest"]
     out = []
@@ -179,6 +199,8 @@ def _fake_scrape(query, location, max_results, log, should_stop):
                "address": f"{i} Main Rd, {location} 560041",
                "mapsUrl": f"https://maps.example/{n.split()[0].lower()}"}
         out.append(rec)
+        if checkpoint:
+            checkpoint(out)
         log(f"    [{i}/{len(names)}] {rec['name']}"
             f"{'' if has_site else '  · NO-SITE'}")
     return out
@@ -198,14 +220,17 @@ def _scrape_one(job, target, location, max_results, headless):
     job.log(f"▶ {query} in {location} (max {max_results}, ≥{min_reviews}★rev)")
 
     records, scrape_err, fatal = [], None, False
+    # write-through checkpoint: every extracted place lands in data/raw at
+    # once, so even a hard kill of this process loses at most one card
+    save_raw = lambda recs: _atomic_json(raw_path, recs)
     try:
         if os.environ.get("ARGORA_FAKE_SCRAPE"):
             records = _fake_scrape(query, location, max_results,
-                                   job.log, lambda: job.stop)
+                                   job.log, lambda: job.stop, checkpoint=save_raw)
         else:
             records = scraper.scrape(
                 query, location, max_results, headless,
-                log=job.log, should_stop=lambda: job.stop)
+                log=job.log, should_stop=lambda: job.stop, checkpoint=save_raw)
     except scraper.ScrapeError as e:
         records, scrape_err, fatal = e.results, e, e.fatal
         job.log(f"  ! scraping interrupted: {e}")
@@ -218,8 +243,7 @@ def _scrape_one(job, target, location, max_results, headless):
          "scraped": 0, "leads": 0, "competitors": 0, "top": "—", "stem": ""}
     if records:
         # Always save whatever raw records we got
-        with open(raw_path, "w", encoding="utf-8") as f:
-            json.dump(records, f, indent=2, ensure_ascii=False)
+        _atomic_json(raw_path, records)
         job.log(f"  raw saved → data/raw/{stem}.json ({len(records)} places)")
 
         allrec, leads, comps = analyze.analyze(records, exclude, min_reviews)
@@ -281,6 +305,7 @@ def run_job(job, sectors_sel, custom, locations, max_results, headless,
                          label=f"area {ai}/{len(locations)} · {target[0]} @ {location}")
                 if _scrape_one(job, target, location, max_results, headless):
                     return          # fatal — job.error is set; finally still runs
+                _checkpoint_job(job)   # a killed server still shows this progress
     except Exception as e:  # defensive: surface, don't crash the server
         job.error = str(e)
         job.log(f"✗ error: {e}")

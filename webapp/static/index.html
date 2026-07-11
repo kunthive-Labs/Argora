@@ -1067,7 +1067,8 @@ loadFollowups();
     if(!d.exists||d.kind!=='scrape'||!(d.summary||[]).length)return;
     window._sum=d.summary; renderStats();
     const leads=d.summary.reduce((a,s)=>a+s.leads,0);
-    logLine(`● last run: ${d.finished_at} — ${d.summary.length} trade(s), ${leads} leads`);
+    const note=d.in_progress?' — interrupted mid-run (partials saved to data/)':'';
+    logLine(`● last run: ${d.finished_at||d.started_at} — ${d.summary.length} trade(s), ${leads} leads${note}`);
   }catch(e){/* older server or no last job — nothing to show */}
 })();
 </script>

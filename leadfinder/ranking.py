@@ -9,8 +9,41 @@ scale across five additive dimensions, applies hard disqualifications and
 special-scenario bonuses/tags, then assigns a tier.
 
 Main entry point: rank(...) -> {score, tier, tags, breakdown, disqualified, web_status}
+
+Inputs are coerced defensively (CSV rows arrive as strings, scrapers hand back
+blanks and junk): a rating of "4.2", reviews of "1,234", or None anywhere must
+degrade to the neutral value, never crash. Coercion only — the scoring itself
+stays byte-for-byte in step with the TypeScript twin.
 """
+import math
 import re
+
+
+# ── defensive input coercion ─────────────────────────────────────────────────
+def coerce_rating(v):
+    """float rating, or None for blank/junk/NaN (treated as 'new')."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (ValueError, TypeError):
+        return None
+    return None if math.isnan(f) else f
+
+
+def coerce_reviews(v):
+    """int review count ≥ 0; accepts 1234, "1,234", "25★" — junk/blank → 0."""
+    if isinstance(v, (int, float)) and not (isinstance(v, float) and math.isnan(v)):
+        return max(0, int(v))
+    try:
+        return int(re.sub(r"[^\d]", "", str(v)) or 0)
+    except (ValueError, TypeError):
+        return 0
+
+
+def _s(v):
+    """Best-effort string: None → '', everything else via str()."""
+    return "" if v is None else str(v)
 
 # ── Step 1: web-presence classification ──────────────────────────────────────
 # A "website" that is really only a social / site-builder page is still a lead.
@@ -35,7 +68,7 @@ GOOGLE_SITES = (
 
 def is_google_site(website):
     """True if the URL is a Google Sites / Google Business Profile auto-site."""
-    w = (website or "").strip().lower()
+    w = _s(website).strip().lower()
     return bool(w) and any(host in w for host in GOOGLE_SITES)
 
 PREMIUM_PINS = {
@@ -46,7 +79,7 @@ PREMIUM_PINS = {
 
 def web_status(website):
     """'none' | 'social' | 'real'. Real = a genuine business site (not a lead)."""
-    w = (website or "").strip().lower()
+    w = _s(website).strip().lower()
     if not w or w in ("none", "n/a", "na", "-", "null"):
         return "none"
     if is_google_site(w):                    # a Google Site = no real website
@@ -145,9 +178,13 @@ def tier_for(score):
 # ── main ─────────────────────────────────────────────────────────────────────
 def rank(name="", phone="", website="", category="", postal="",
          rating=None, reviews=0, is_duplicate=False):
-    """Full ranking for one lead. `rating` may be None (treated as 'new')."""
+    """Full ranking for one lead. `rating` may be None (treated as 'new').
+    Every argument is coerced first — strings, None, and junk all degrade to
+    the neutral value instead of raising."""
+    name, phone, category = _s(name), _s(phone), _s(category)
+    rating = coerce_rating(rating)
+    reviews = coerce_reviews(reviews)
     ws = web_status(website)
-    reviews = reviews or 0
 
     disq = is_disqualified(name, phone, rating, reviews)
 
@@ -164,10 +201,10 @@ def rank(name="", phone="", website="", category="", postal="",
         tags.append("upgrade_pitch"); bonus += 5
     if ws == "none" and reviews > 300:
         tags.append("iconic_local"); bonus += 5
-    premium = bool(postal) and str(postal).strip() in PREMIUM_PINS
+    premium = bool(postal) and _s(postal).strip() in PREMIUM_PINS
     if premium:
         tags.append("premium_zone"); bonus += 3
-    if not (phone or "").strip() and reviews > 200:
+    if not phone.strip() and reviews > 200:
         tags.append("find_phone")
     if is_duplicate:
         tags.append("duplicate")
@@ -191,10 +228,13 @@ def rank(name="", phone="", website="", category="", postal="",
 
 # ── tie-breaking (Step 6) — sort key for a ranked list ───────────────────────
 def sort_key(rec):
-    """Higher is better. rec must carry score, reviews, rating, web_status, phone."""
+    """Higher is better. rec must carry score, reviews, rating, web_status, phone.
+    Numerics are coerced (CSV rows carry them as strings) so mixed-type lists
+    can't raise on comparison."""
     ws_rank = 1 if rec.get("web_status") == "none" else 0
-    has_phone = 1 if (rec.get("phone") or "").strip() else 0
+    has_phone = 1 if _s(rec.get("phone")).strip() else 0
     is_dup = 1 if "duplicate" in (rec.get("rank_tags") or []) else 0
     # duplicates sink to the bottom regardless of score
-    return (-is_dup, rec.get("score", 0), rec.get("reviews", 0),
-            rec.get("rating") or 0, ws_rank, has_phone)
+    return (-is_dup, coerce_reviews(rec.get("score", 0)),
+            coerce_reviews(rec.get("reviews", 0)),
+            coerce_rating(rec.get("rating")) or 0, ws_rank, has_phone)

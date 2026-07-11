@@ -9,28 +9,74 @@
   <meta property="og:title" content="Argora - find the businesses the web forgot" />
   <meta property="og:description" content="Free Google Maps lead generation for no-website prospecting. Scrape, rank, and reach out from one screen. No Apify credits, no Places API." />
   <meta property="og:url" content="https://kunthive-labs.github.io/Argora/" />
-  <meta name="theme-color" content="#050505" />
+  <meta name="theme-color" content="#fafafa" />
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
   <style>
     :root {
-      --bg: #050505;
-      --text: #ffffff;
-      --text-2: #a1a1aa;
-      --muted: #52525b;
+      --bg: #fafafa;
+      --text: #09090b;
+      --text-2: #52525b;
+      --muted: #86868f;
+      --dim: #71717a;
       --soft: #71717a;
-      --line: rgba(255, 255, 255, 0.06);
-      --line-strong: rgba(255, 255, 255, 0.12);
-      --panel: #0a0a0a;
+      --line: rgba(0, 0, 0, 0.07);
+      --line-strong: rgba(0, 0, 0, 0.16);
+      --line-hover: rgba(0, 0, 0, 0.38);
+      --panel: #ffffff;
+      --header-bg: rgba(250, 250, 250, 0.92);
+      --btn-bg: #09090b;
+      --btn-fg: #ffffff;
+      --sel-bg: #09090b;
+      --sel-fg: #ffffff;
+      --code: #27272a;
+      --dgm-dot: rgba(0, 0, 0, 0.09);
+      --dgm-corner: rgba(0, 0, 0, 0.3);
+      --dgm-node-fill: rgba(0, 0, 0, 0.02);
+      --dgm-node-stroke: rgba(0, 0, 0, 0.28);
+      --dgm-label: #09090b;
+      --dgm-wire: rgba(0, 0, 0, 0.35);
       --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
       --maxw: 1180px;
     }
+    html.dark {
+      --bg: #050505;
+      --text: #ffffff;
+      --text-2: #a1a1aa;
+      --muted: #52525b;
+      --dim: #52525b;
+      --soft: #71717a;
+      --line: rgba(255, 255, 255, 0.06);
+      --line-strong: rgba(255, 255, 255, 0.12);
+      --line-hover: rgba(255, 255, 255, 0.3);
+      --panel: #0a0a0a;
+      --header-bg: rgba(5, 5, 5, 0.92);
+      --btn-bg: #ffffff;
+      --btn-fg: #000000;
+      --sel-bg: #ffffff;
+      --sel-fg: #000000;
+      --code: #e4e4e7;
+      --dgm-dot: rgba(255, 255, 255, 0.055);
+      --dgm-corner: rgba(255, 255, 255, 0.25);
+      --dgm-node-fill: rgba(255, 255, 255, 0.03);
+      --dgm-node-stroke: rgba(255, 255, 255, 0.22);
+      --dgm-label: #fafafa;
+      --dgm-wire: rgba(255, 255, 255, 0.3);
+    }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; color-scheme: dark; }
+    html { scroll-behavior: smooth; color-scheme: light; }
+    html.dark { color-scheme: dark; }
     body {
       background: var(--bg);
       color: var(--text);
@@ -39,7 +85,7 @@
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
     }
-    ::selection { background: #fff; color: #000; }
+    ::selection { background: var(--sel-bg); color: var(--sel-fg); }
     a { color: inherit; text-decoration: none; }
     img, svg { display: block; max-width: 100%; }
 
@@ -48,7 +94,7 @@
     /* ---------- header ---------- */
     header {
       position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-      background: rgba(5, 5, 5, 0.92);
+      background: var(--header-bg);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--line);
@@ -64,10 +110,21 @@
     .nav-links a { font-size: 13.5px; color: var(--text-2); transition: color 0.2s; }
     .nav-links a:hover { color: var(--text); }
     .nav-links .btn-sm {
-      color: #000; background: #fff; padding: 7px 14px; border-radius: 6px;
+      color: var(--btn-fg); background: var(--btn-bg); padding: 7px 14px; border-radius: 6px;
       font-weight: 600; transition: opacity 0.2s;
     }
-    .nav-links .btn-sm:hover { opacity: 0.85; color: #000; }
+    .nav-links .btn-sm:hover { opacity: 0.85; color: var(--btn-fg); }
+    .theme-toggle {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border: 1px solid var(--line-strong); border-radius: 50%;
+      background: transparent; color: var(--text-2); cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .theme-toggle:hover { color: var(--text); border-color: var(--line-hover); }
+    .theme-toggle svg { width: 15px; height: 15px; }
+    .theme-toggle .icon-moon { display: none; }
+    html.dark .theme-toggle .icon-moon { display: block; }
+    html.dark .theme-toggle .icon-sun { display: none; }
 
     /* ---------- hero ---------- */
     .hero { padding: 150px 0 90px; border-bottom: 1px solid var(--line); }
@@ -82,7 +139,7 @@
       font-weight: 700;
       max-width: 12ch;
     }
-    .hero h1 .dim { color: var(--muted); }
+    .hero h1 .dim { color: var(--dim); }
     .hero p {
       margin-top: 28px; font-size: 18px; color: var(--text-2);
       max-width: 52ch; line-height: 1.65;
@@ -94,10 +151,10 @@
       transition: transform 0.15s, opacity 0.2s, border-color 0.2s;
     }
     .btn:active { transform: scale(0.98); }
-    .btn-primary { background: #fff; color: #000; }
+    .btn-primary { background: var(--btn-bg); color: var(--btn-fg); }
     .btn-primary:hover { opacity: 0.87; }
     .btn-ghost { border: 1px solid var(--line-strong); color: var(--text); }
-    .btn-ghost:hover { border-color: rgba(255, 255, 255, 0.3); }
+    .btn-ghost:hover { border-color: var(--line-hover); }
 
     /* ---------- sections ---------- */
     section { padding: 96px 0; border-bottom: 1px solid var(--line); }
@@ -114,13 +171,13 @@
       position: relative; margin-top: 56px;
       border: 1px solid var(--line); border-radius: 10px;
       background:
-        radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+        radial-gradient(var(--dgm-dot) 1px, transparent 1px);
       background-size: 26px 26px;
       background-color: var(--panel);
       padding: 48px 32px;
       overflow: hidden;
     }
-    .dgm-corner { position: absolute; width: 14px; height: 14px; border-color: rgba(255,255,255,0.25); border-style: solid; border-width: 0; }
+    .dgm-corner { position: absolute; width: 14px; height: 14px; border-color: var(--dgm-corner); border-style: solid; border-width: 0; }
     .dgm-corner.tl { top: 10px; left: 10px; border-top-width: 1px; border-left-width: 1px; }
     .dgm-corner.tr { top: 10px; right: 10px; border-top-width: 1px; border-right-width: 1px; }
     .dgm-corner.bl { bottom: 10px; left: 10px; border-bottom-width: 1px; border-left-width: 1px; }
@@ -131,10 +188,10 @@
     }
     .dgm-svg { width: 100%; height: auto; }
     .dgm-svg text { font-family: var(--mono); }
-    .dgm-node { fill: rgba(255, 255, 255, 0.03); stroke: rgba(255, 255, 255, 0.22); }
-    .dgm-node-label { fill: #fafafa; font-size: 12px; font-weight: 500; }
-    .dgm-node-sub { fill: #71717a; font-size: 9.5px; }
-    .dgm-wire { stroke: rgba(255, 255, 255, 0.3); stroke-dasharray: 5 5; fill: none; }
+    .dgm-node { fill: var(--dgm-node-fill); stroke: var(--dgm-node-stroke); }
+    .dgm-node-label { fill: var(--dgm-label); font-size: 12px; font-weight: 500; }
+    .dgm-node-sub { fill: var(--soft); font-size: 9.5px; }
+    .dgm-wire { stroke: var(--dgm-wire); stroke-dasharray: 5 5; fill: none; }
     @media (prefers-reduced-motion: no-preference) {
       .dgm-wire { animation: dash 1.6s linear infinite; }
     }
@@ -171,7 +228,7 @@
     .term-body { padding: 24px 22px; font-family: var(--mono); font-size: 13.5px; line-height: 2.05; overflow-x: auto; }
     .term-body .c { color: var(--muted); }
     .term-body .p { color: var(--soft); user-select: none; }
-    .term-body code { font-family: inherit; color: #e4e4e7; white-space: pre; }
+    .term-body code { font-family: inherit; color: var(--code); white-space: pre; }
 
     /* ---------- principles ---------- */
     .principles { margin-top: 48px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; }
@@ -236,6 +293,10 @@
         <a href="#why">Why</a>
         <a href="#how">How it works</a>
         <a href="#start">Quickstart</a>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch between light and dark theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
         <a class="btn-sm" href="https://github.com/kunthive-Labs/Argora">GitHub</a>
       </nav>
     </div>
@@ -434,6 +495,19 @@
   </footer>
 
   <script>
+    (function () {
+      var btn = document.getElementById('themeToggle');
+      var meta = document.querySelector('meta[name="theme-color"]');
+      function syncMeta() {
+        meta.setAttribute('content', document.documentElement.classList.contains('dark') ? '#050505' : '#fafafa');
+      }
+      syncMeta();
+      btn.addEventListener('click', function () {
+        var dark = document.documentElement.classList.toggle('dark');
+        try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
+        syncMeta();
+      });
+    })();
     (function () {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       var io = new IntersectionObserver(function (entries) {

@@ -14,6 +14,19 @@ message generation, an outreach log).
 
 ---
 
+**Documentation map**
+
+| Doc | Read it when |
+|---|---|
+| this README | setting up, first run, the daily workflow |
+| [BARRIERS.md](BARRIERS.md) | **before scaling** — what gets you throttled/banned, what never to build |
+| [SCHEMA.md](SCHEMA.md) | pushing to the KunthiveOS database — column mapping + dedup guarantees |
+| [docs/API.md](docs/API.md) | calling the local HTTP API from another app (KunthiveOS does) |
+| [docs/RECOVERY.md](docs/RECOVERY.md) | a run got interrupted (CAPTCHA, crash, kill) — what survived, how to recover |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | changing the code — module map, tests, fake-scrape mode, selector upkeep |
+
+---
+
 ## The funnel, end to end
 
 ```
@@ -99,13 +112,26 @@ playwright install chromium
 
 ### Tests
 
-The intelligence layer (ranking, analysis, SQL generation, outreach) is covered
-by a pytest suite — pure functions, no browser or network needed:
+The intelligence layer (ranking, analysis, SQL generation, outreach) and the
+server's job orchestration are covered by a 200+ case pytest suite — pure
+functions and mocked scrapes, no browser or network needed:
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
+
+To exercise the whole app end-to-end **without touching Google**, run it with
+the fake-scrape hook — canned places with realistic pacing:
+
+```bash
+ARGORA_FAKE_SCRAPE=1 python app.py        # Windows: set ARGORA_FAKE_SCRAPE=1
+```
+
+> **Windows notes**: activate the venv with `.venv\Scripts\activate` (shown
+> above); everything else is identical — all file I/O is explicit UTF-8. If you
+> pipe CLI output to a file on a legacy-codepage system and hit an encoding
+> error on the `★` symbols, set `PYTHONUTF8=1`.
 
 > **Two things do NOT come through git** (they're git-ignored on purpose):
 > 1. **Your scraped data** in `data/` — it's local business PII. You start the
@@ -160,12 +186,17 @@ real browser).
 
 | Folio | Name | What you do |
 |---|---|---|
-| **fol. 1** | Open an entry | Pick trades (preset chips or write your own) + a locality, set max/search. **Post the run.** |
-| **fol. 2** | Posting | Watch the scrape **live** — each place streams in, with running lead/competitor/scraped counts. |
+| **fol. 1** | Open an entry | Pick trades (preset chips or write your own) + **one or more localities** (one per line — scraped in order, with a configurable rest between areas). **Post the run.** |
+| **fol. 2** | Posting | Watch the scrape **live** — each place streams in, with running lead/competitor/scraped/area counts. `area 2/3 · gym @ HSR Layout` phase lines show where the run is. |
 | **fol. 3** | The ledger | Browse/sort/filter any generated CSV; click a row for full detail; download. |
 | **fol. 4** | Post to the master | Pick a LEADS book → **Draft the SQL** (copy/download) or **Post direct** to KunthiveOS (idempotent, safe to re-run). |
 | **fol. 5** | Page extractor | Paste one exact URL → transcribe its text (or a full-page screenshot if it can't be copied). Use it to grab a competitor's pricing/services page. |
-| **fol. 6** | Outreach studio | Open a LEADS book → each lead becomes a ready-to-send pitch. Fire WhatsApp/Call/Email/walk-in, log the touch, set follow-ups. |
+| **fol. 6** | Outreach studio | Open a LEADS book → each lead becomes a ready-to-send pitch. Fire WhatsApp/Call/Email/walk-in, log the touch, set follow-ups. **Due follow-ups** surface as a banner at the top of the page and a red badge on this folio — click through to land on the lead's pitch card. |
+
+**Batching areas**: list several localities in fol. 1 and the run works through
+them inside the one job slot, resting between areas (default 180 s — the
+BARRIERS.md pacing, adjustable under *Posting terms*). Each (trade, area) pair
+gets its own summary row and its own set of CSVs.
 
 ---
 
@@ -200,8 +231,9 @@ python -m leadfinder.extractor "https://example.com/pricing" --out data/extracts
 
 ## The daily operating workflow
 
-1. **fol. 1–2** — scrape one trade in one neighbourhood (headed, modest — see
-   BARRIERS.md). Repeat for a few areas across a session, spaced out.
+1. **fol. 1–2** — pick a trade and list the session's neighbourhoods (headed,
+   modest — see BARRIERS.md). The run paces itself area-to-area; you watch it
+   stream in.
 2. **fol. 4** — push the LEADS book into KunthiveOS (idempotent; never
    duplicates).
 3. **fol. 6 — Outreach studio:**
@@ -240,6 +272,32 @@ bonuses/tags (upgrade_pitch, iconic_local, premium_zone…) and a tier
 (hot/warm/cool/cold). Google Sites / `business.site` auto-pages count as **no
 website** — the strongest kind of lead. Full spec:
 `KunthiveOS/docs/handover-lead-ranking-algorithm.md`.
+
+---
+
+## Resilience — an interrupted run never loses work
+
+Scraping gets interrupted: Google throws a CAPTCHA wall, the browser dies, the
+laptop sleeps, you hit **Halt**. Argora is built so none of that costs you the
+places already scraped:
+
+- **Write-through checkpointing** — every extracted place is saved to
+  `data/raw/<stem>.json` (atomically) *the moment it's scraped*. Even a hard
+  kill of the process loses at most the one card in flight.
+- **CAPTCHA detection, graceful stop** — Google's "unusual traffic" wall is
+  detected and the run stops with a clear message. Partials are saved. (Per
+  BARRIERS.md the right response is to stop for the day — Argora never tries to
+  solve or evade it.)
+- **Per-sector isolation** — one trade failing mid-batch doesn't kill the run;
+  its partials are saved, the error is recorded on its summary row, and the
+  remaining trades/areas continue.
+- **`-RECOVERED` books** — CSVs built from an interrupted scrape are suffixed
+  `-RECOVERED` so you can tell a partial book from a complete one at a glance.
+- **Survives a dead server** — job progress is snapshotted to
+  `data/last_job.json` after every finished target; reopen the app and fol. 2
+  shows what completed ("interrupted mid-run — partials saved to data/").
+
+Full details + the manual recovery command: **[docs/RECOVERY.md](docs/RECOVERY.md)**.
 
 ---
 
